@@ -1,38 +1,32 @@
-<package>
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
   <name>gpu_stereo_image_proc_common</name>
-  <version>1.0.0</version>
-  <description>Stereo disparity processing by using NVIDIA VisionWorks and Fixstars libSGM.</description>
-  <author>Seiya Shimizu</author>
-  <maintainer email="shimizu@whill.jp">Seiya Shimizu</maintainer>
-  <license>BSD</license>
-  <url>https://github.com/WHILL/gpu_stereo_image_proc</url>
+  <version>0.0.0</version>
+  <description>TODO: Package description</description>
+  <maintainer email="root@todo.todo">root</maintainer>
+  <license>TODO: License declaration</license>
 
-  <export>
-    <rosdoc config="rosdoc.yaml" />
-  </export>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <buildtool_depend>catkin</buildtool_depend>
-
-  <test_depend>rostest</test_depend>
-  
-  <build_depend>cv_bridge</build_depend>
-  <build_depend>dynamic_reconfigure</build_depend>
-  <build_depend>image_geometry</build_depend>
+  <build_depend>rclcpp</build_depend>
+  <build_depend>std_msgs</build_depend>
   <build_depend>image_proc</build_depend>
   <build_depend>image_transport</build_depend>
   <build_depend>message_filters</build_depend>
-  <build_depend>nodelet</build_depend>
   <build_depend>sensor_msgs</build_depend>
-  <build_depend>stereo_msgs</build_depend>
-  <build_depend>opencv_apps</build_depend>
 
-  <run_depend>cv_bridge</run_depend>
-  <run_depend>dynamic_reconfigure</run_depend>
-  <run_depend>image_geometry</run_depend>
-  <run_depend>image_proc</run_depend>
-  <run_depend>image_transport</run_depend>
-  <run_depend>message_filters</run_depend>
-  <run_depend>nodelet</run_depend>
-  <run_depend>sensor_msgs</run_depend>
-  <run_depend>stereo_msgs</run_depend>
+  <exec_depend>rclcpp</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <build_depend>image_proc</build_depend>
+  <exec_depend>image_transport</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+  <build_depend>sensor_msgs</build_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
 </package>

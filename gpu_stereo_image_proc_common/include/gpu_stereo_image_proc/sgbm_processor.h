@@ -34,19 +34,20 @@
 #ifndef GPU_STEREO_IMAGE_PROC_SGBM_PROCESSOR_H
 #define GPU_STEREO_IMAGE_PROC_SGBM_PROCESSOR_H
 #include <image_geometry/stereo_camera_model.h>
-#include <image_proc/processor.h>
-#include <ros/ros.h>
-#include <sensor_msgs/PointCloud.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <stereo_msgs/DisparityImage.h>
+#include <image_proc/processor.hpp>
+// #include <ros/ros.h>
+#include <sensor_msgs/msg/point_cloud.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+// #include <sensor_msgs/PointCloud2.h>
+#include <stereo_msgs/msg/disparity_image.hpp>
 
 namespace gpu_stereo_image_proc {
 struct StereoImageSet {
   image_proc::ImageSet left;
   image_proc::ImageSet right;
-  stereo_msgs::DisparityImage disparity;
-  sensor_msgs::PointCloud points;
-  sensor_msgs::PointCloud2 points2;
+  stereo_msgs::msg::DisparityImage disparity;
+  sensor_msgs::msg::PointCloud points;
+  sensor_msgs::msg::PointCloud2 points2;
 };
 
 class StereoSGBMProcessor {
@@ -96,13 +97,13 @@ public:
 
   int getP1() const { return P1_; }
   void setP1(int P1) {
-    ROS_INFO("%s, in %d", __func__, P1);
+    // ROS_INFO("%s, in %d", __func__, P1);
     P1_ = P1;
   }
 
   int getP2() const { return P2_; }
   void setP2(int P2) {
-    ROS_INFO("%s, in %d", __func__, P2);
+    // ROS_INFO("%s, in %d", __func__, P2);
     P2_ = P2;
   }
 
@@ -121,7 +122,7 @@ public:
 
   void disparityToDisparityImage(const cv::Mat_<int16_t> disparity16,
                                  const image_geometry::StereoCameraModel &model,
-                                 stereo_msgs::DisparityImage &disparity) const;
+                                 stereo_msgs::msg::DisparityImage &disparity) const;
 
   // void processPoints(const stereo_msgs::DisparityImage&       disparity,
   //                    const cv::Mat&                           color,
@@ -169,7 +170,7 @@ inline int StereoSGBMProcessor::getMaxDisparity() const {
 }
 
 inline bool StereoSGBMProcessor::setMaxDisparity(int max_d) {
-  ROS_INFO("%s, in %d", __func__, max_d);
+  // ROS_INFO("%s, in %d", __func__, max_d);
   max_disparity_ = max_d;
   return true;
 }
@@ -179,7 +180,7 @@ inline int StereoSGBMProcessor::getDisparityRange() const {
 }
 
 inline bool StereoSGBMProcessor::setDisparityRange(int range) {
-  ROS_INFO("%s, in %d", __func__, range);
+  // ROS_INFO("%s, in %d", __func__, range);
   if (range < 0)
     return false;
   disparity_range_ = range;

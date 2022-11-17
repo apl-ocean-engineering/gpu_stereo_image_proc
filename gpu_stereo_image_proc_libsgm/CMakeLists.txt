@@ -1,8 +1,28 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5)
 project(gpu_stereo_image_proc_libsgm)
 
-find_package(catkin REQUIRED cv_bridge dynamic_reconfigure image_geometry image_proc image_transport 
-                message_filters nodelet sensor_msgs stereo_msgs gpu_stereo_image_proc_common)
+# Default to C++14
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(image_geometry REQUIRED)
+find_package(image_proc REQUIRED)
+find_package(image_transport REQUIRED)
+find_package(message_filters REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(gpu_stereo_image_proc_common REQUIRED)
+
+# find_package(catkin REQUIRED cv_bridge dynamic_reconfigure image_geometry image_proc image_transport 
+                # message_filters nodelet sensor_msgs stereo_msgs gpu_stereo_image_proc_common)
+
 find_package(Boost REQUIRED COMPONENTS thread)
 
 if(cv_bridge_VERSION VERSION_GREATER "1.12.0")
@@ -14,14 +34,14 @@ if(cv_bridge_VERSION VERSION_GREATER "1.12.0")
 endif()
 
 # Dynamic reconfigure support
-generate_dynamic_reconfigure_options(
-  cfg/LIBSGM.cfg)
+# generate_dynamic_reconfigure_options(
+#   cfg/LIBSGM.cfg)
 
-catkin_package(
-  CATKIN_DEPENDS image_geometry image_proc sensor_msgs stereo_msgs
-  INCLUDE_DIRS include
-  LIBRARIES ${PROJECT_NAME}
-)
+# catkin_package(
+#   CATKIN_DEPENDS image_geometry image_proc sensor_msgs stereo_msgs
+#   INCLUDE_DIRS include
+#   LIBRARIES ${PROJECT_NAME}
+# )
 
 include_directories(include)
 
@@ -66,6 +86,9 @@ set(LIBSGM_NODELET_NAME libsgm_stereo_image_proc)
 add_library(${LIBSGM_NODELET_NAME}
             src/libgpu_stereo_image_proc_libsgm/libsgm_sgbm_processor.cpp 
             src/nodelet/libsgm_disparity.cpp)
+
+ament_target_dependencies(${PROJECT_NAME} image_proc sensor_msgs)
+
 target_link_libraries(${LIBSGM_NODELET_NAME} ${catkin_LIBRARIES}
                                              ${OpenCV_LIBRARIES}
                                              sgm

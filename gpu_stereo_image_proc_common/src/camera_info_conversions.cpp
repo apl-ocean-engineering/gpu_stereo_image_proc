@@ -1,12 +1,12 @@
 #include <gpu_stereo_image_proc/camera_info_conversions.h>
-#include <ros/ros.h>
+// #include <ros/ros.h>
 
-sensor_msgs::CameraInfoPtr
-scaleCameraInfo(const sensor_msgs::CameraInfoConstPtr &cam,
+sensor_msgs::msg::CameraInfo::SharedPtr
+scaleCameraInfo(const sensor_msgs::msg::CameraInfo::ConstSharedPtr &cam,
                 float downsample) {
 
-  sensor_msgs::CameraInfoPtr out =
-      boost::make_shared<sensor_msgs::CameraInfo>();
+  sensor_msgs::msg::CameraInfo::SharedPtr out =
+      std::make_shared<sensor_msgs::msg::CameraInfo>();
 
   out->header = cam->header;
 
@@ -17,23 +17,23 @@ scaleCameraInfo(const sensor_msgs::CameraInfoConstPtr &cam,
   //  out->distortion_model
   //  out->D
 
-  out->K[0] = cam->K[0] / downsample;
-  out->K[2] = cam->K[2] / downsample;
-  out->K[4] = cam->K[4] / downsample;
-  out->K[5] = cam->K[5] / downsample;
-  out->K[8] = 1;
+  out->k[0] = cam->k[0] / downsample;
+  out->k[2] = cam->k[2] / downsample;
+  out->k[4] = cam->k[4] / downsample;
+  out->k[5] = cam->k[5] / downsample;
+  out->k[8] = 1;
 
-  out->R = cam->R;
+  out->r = cam->r;
 
-  out->P[0] = cam->P[0] / downsample;
-  out->P[2] = cam->P[2] / downsample;
-  out->P[3] = cam->P[3] / downsample;
+  out->p[0] = cam->p[0] / downsample;
+  out->p[2] = cam->p[2] / downsample;
+  out->p[3] = cam->p[3] / downsample;
 
-  out->P[5] = cam->P[5] / downsample;
-  out->P[6] = cam->P[6] / downsample;
-  out->P[7] = cam->P[7] / downsample;
+  out->p[5] = cam->p[5] / downsample;
+  out->p[6] = cam->p[6] / downsample;
+  out->p[7] = cam->p[7] / downsample;
 
-  out->P[10] = 1;
+  out->p[10] = 1;
 
   return out;
 }

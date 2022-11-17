@@ -1,17 +1,17 @@
 #include <gpu_stereo_image_proc/msg_conversions.h>
 
-#include <ros/ros.h>
-#include <sensor_msgs/image_encodings.h>
+// #include <ros/ros.h>
+#include <sensor_msgs/image_encodings.hpp>
 
-using namespace sensor_msgs;
-using namespace stereo_msgs;
+using namespace sensor_msgs::msg;
+using namespace stereo_msgs::msg;
 
-stereo_msgs::DisparityImagePtr disparityToDisparityImage(
-    const ImageConstPtr &image, const cv::Mat_<int16_t> disparity16,
+stereo_msgs::msg::DisparityImage::SharedPtr disparityToDisparityImage(
+    const sensor_msgs::msg::Image::ConstPtr &image, const cv::Mat_<int16_t> disparity16,
     const image_geometry::StereoCameraModel &model, int min_disparity,
     int max_disparity, int border, float downsample) {
 
-  DisparityImagePtr disp_msg = boost::make_shared<DisparityImage>();
+  DisparityImage::SharedPtr disp_msg = std::make_shared<DisparityImage>();
   disp_msg->header = image->header;
   disp_msg->image.header = image->header;
 
@@ -19,9 +19,10 @@ stereo_msgs::DisparityImagePtr disparityToDisparityImage(
   const double inv_dpp = 1.0 / DPP; // downsample / DPP
 
   // Fill in DisparityImage image data, converting to 32-bit float
-  sensor_msgs::Image &dimage = disp_msg->image;
+  Image &dimage = disp_msg->image;
   dimage.height = disparity16.rows;
   dimage.width = disparity16.cols;
+  // dimage.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
   dimage.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
   dimage.step = dimage.width * sizeof(float);
   dimage.data.resize(dimage.step * dimage.height);
@@ -33,7 +34,7 @@ stereo_msgs::DisparityImagePtr disparityToDisparityImage(
   disparity16.convertTo(dmat, dmat.type(), inv_dpp,
                         -(model.left().cx() - model.right().cx()) /
                             downsample);
-  ROS_ASSERT(dmat.data == &dimage.data[0]);
+  // ROS_ASSERT(dmat.data == &dimage.data[0]);
   /// @todo is_bigendian? :)
 
   const int left = max_disparity + border - 1;
@@ -51,7 +52,7 @@ stereo_msgs::DisparityImagePtr disparityToDisparityImage(
 
   // Stereo parameters
   disp_msg->f = model.right().fx() / downsample;
-  disp_msg->T = model.baseline();
+  disp_msg->t = model.baseline();
 
   /// @todo Window of (potentially) valid disparities
 
