@@ -18,10 +18,17 @@
 
   <exec_depend>rclcpp</exec_depend>
   <exec_depend>std_msgs</exec_depend>
-  <build_depend>image_proc</build_depend>
+  <exec_depend>image_proc</exec_depend>
   <exec_depend>image_transport</exec_depend>
   <exec_depend>message_filters</exec_depend>
-  <build_depend>sensor_msgs</build_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+
+  <!-- <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>image_proc</depend>
+  <depend>image_transport</depend>
+  <depend>message_filters</depend>
+  <depend>sensor_msgs</depend> -->
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

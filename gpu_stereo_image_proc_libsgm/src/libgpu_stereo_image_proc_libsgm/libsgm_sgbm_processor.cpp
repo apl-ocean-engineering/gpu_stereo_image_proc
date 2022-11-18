@@ -32,7 +32,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 #include "gpu_stereo_image_proc/libsgm/libsgm_sgbm_processor.h"
-#include <ros/assert.h>
+// #include <ros/assert.h>
 #include <sensor_msgs/image_encodings.h>
 
 namespace gpu_stereo_image_proc {

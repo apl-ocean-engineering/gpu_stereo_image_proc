@@ -20,7 +20,12 @@ find_package(message_filters REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(gpu_stereo_image_proc_common REQUIRED)
 
-# find_package(catkin REQUIRED cv_bridge dynamic_reconfigure image_geometry image_proc image_transport 
+if (${gpu_stereo_image_proc_common_FOUND})
+message("gpu_stereo_image_proc_common_INCLUDE_DIRS:" , ${gpu_stereo_image_proc_common_FOUND})
+endif()
+
+
+# find_package(catkin REQUIRED cv_bridge dynamic_reconfigure image_geometry image_proc image_transport
                 # message_filters nodelet sensor_msgs stereo_msgs gpu_stereo_image_proc_common)
 
 find_package(Boost REQUIRED COMPONENTS thread)
@@ -43,10 +48,27 @@ endif()
 #   LIBRARIES ${PROJECT_NAME}
 # )
 
-include_directories(include)
+# include_directories(include)
 
-find_package(OpenCV 4 REQUIRED) 
-include_directories(${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
+include_directories(
+  include
+  libSGM/include/
+)
+
+
+find_package(OpenCV 4 REQUIRED)
+
+include_directories(
+  # include
+  ${OpenCV_INCLUDE_DIRS}
+  # ${gpu_stereo_image_proc_common_INCLUDE_DIRS}
+  # "/home/catkin_ws/install/gpu_stereo_image_proc_common/include/"
+)
+
+message("gpu_stereo_image_proc_common_INCLUDE_DIRS: ", ${gpu_stereo_image_proc_common_INCLUDE_DIRS})
+# message(${gpu_stereo_image_proc_common_INCLUDE_DIRS})
+
+
 
 find_package(CUDA REQUIRED)
 set(CUDA_ARCH "-arch=sm_72" CACHE STRING "Value of the NVCC -arch option.")
@@ -76,39 +98,39 @@ ExternalProject_Add(
     BUILD_ALWAYS ON
 )
 
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/libSGM/include)
-link_directories(${CMAKE_CURRENT_BINARY_DIR}/libSGM/lib)
+message("CMAKE_CURRENT_BINARY_DIR: ", ${CMAKE_CURRENT_BINARY_DIR})
+
+# include_directories(${CMAKE_CURRENT_BINARY_DIR}/libSGM/include)
+# link_directories(${CMAKE_CURRENT_BINARY_DIR}/libSGM/lib)
 
 # See note in image_proc/CMakeLists.txt
 add_definitions(-DOPENCV_TRAITS_ENABLE_DEPRECATED)
 
 set(LIBSGM_NODELET_NAME libsgm_stereo_image_proc)
 add_library(${LIBSGM_NODELET_NAME}
-            src/libgpu_stereo_image_proc_libsgm/libsgm_sgbm_processor.cpp 
+            src/libgpu_stereo_image_proc_libsgm/libsgm_sgbm_processor.cpp
             src/nodelet/libsgm_disparity.cpp)
 
-ament_target_dependencies(${PROJECT_NAME} image_proc sensor_msgs)
+ament_target_dependencies(${LIBSGM_NODELET_NAME} image_proc sensor_msgs gpu_stereo_image_proc_common)
 
-target_link_libraries(${LIBSGM_NODELET_NAME} ${catkin_LIBRARIES}
-                                             ${OpenCV_LIBRARIES}
-                                             sgm
+target_link_libraries(${LIBSGM_NODELET_NAME}
+                      ${OpenCV_LIBRARIES}
+                      sgm
 )
 
-add_dependencies(${LIBSGM_NODELET_NAME} ext-libSGM ${PROJECT_NAME}_gencfg)
+#add_dependencies(${LIBSGM_NODELET_NAME} ext-libSGM ${PROJECT_NAME}_gencfg)
 install(TARGETS ${LIBSGM_NODELET_NAME}
-        DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-)
-
-install(FILES nodelet_plugins.xml
-        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+        DESTINATION lib/${PROJECT_NAME}
 )
 
 # install the launch file
 install(DIRECTORY launch
-        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/
+        DESTINATION share/${PROJECT_NAME}
 )
 
 # install the include directory
 install(DIRECTORY include/${PROJECT_NAME}/
-        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+        DESTINATION share/${PROJECT_NAME}
 )
+
+ament_package()

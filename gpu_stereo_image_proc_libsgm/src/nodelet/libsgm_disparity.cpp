@@ -42,8 +42,8 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/sync_policies/exact_time.h>
 #include <message_filters/synchronizer.h>
-#include <nodelet/nodelet.h>
-#include <ros/ros.h>
+// #include <nodelet/nodelet.h>
+// #include <ros/ros.h>
 
 #include <cv_bridge/cv_bridge.h>
 #include <image_geometry/stereo_camera_model.h>
@@ -57,12 +57,21 @@
 
 #include "gpu_stereo_image_proc/libsgm/libsgm_sgbm_processor.h"
 
+#include <rclcpp/rclcpp.hpp>
+
 namespace gpu_stereo_image_proc {
+
 using namespace sensor_msgs;
 using namespace stereo_msgs;
 using namespace message_filters::sync_policies;
 
-class LibSGMDisparityNodelet : public nodelet::Nodelet {
+class LibSGMDisparityNode : public rclpp : Node {
+
+public:
+  explicit PointCloudNode(const rclcpp::NodeOptions &options);
+
+private:
+  // class LibSGMDisparityNode : public nodelet::Nodelet {
   boost::shared_ptr<image_transport::ImageTransport> it_;
 
   // Subscriptions
@@ -77,7 +86,8 @@ class LibSGMDisparityNodelet : public nodelet::Nodelet {
   boost::shared_ptr<ApproximateSync> approximate_sync_;
   // Publications
   boost::mutex connect_mutex_;
-  ros::Publisher pub_disparity_;
+  // ros::Publisher pub_disparity_;
+  std::shared_ptr<rclcpp::Publisher<DisparityImage>> pub_disparity_;
 
   // Dynamic reconfigure
   boost::recursive_mutex config_mutex_;
@@ -102,7 +112,7 @@ class LibSGMDisparityNodelet : public nodelet::Nodelet {
   void configCb(Config &config, uint32_t level);
 };
 
-void LibSGMDisparityNodelet::onInit() {
+void LibSGMDisparityNode::onInit() {
   ros::NodeHandle &nh = getNodeHandle();
   ros::NodeHandle &private_nh = getPrivateNodeHandle();
   it_.reset(new image_transport::ImageTransport(nh));
@@ -118,23 +128,23 @@ void LibSGMDisparityNodelet::onInit() {
                                                 sub_l_image_, sub_l_info_,
                                                 sub_r_image_, sub_r_info_));
     approximate_sync_->registerCallback(
-        boost::bind(&LibSGMDisparityNodelet::imageCb, this, _1, _2, _3, _4));
+        boost::bind(&LibSGMDisparityNode::imageCb, this, _1, _2, _3, _4));
   } else {
     exact_sync_.reset(new ExactSync(ExactPolicy(queue_size), sub_l_image_,
                                     sub_l_info_, sub_r_image_, sub_r_info_));
     exact_sync_->registerCallback(
-        boost::bind(&LibSGMDisparityNodelet::imageCb, this, _1, _2, _3, _4));
+        boost::bind(&LibSGMDisparityNode::imageCb, this, _1, _2, _3, _4));
   }
 
   // Set up dynamic reconfiguration
   ReconfigureServer::CallbackType f =
-      boost::bind(&LibSGMDisparityNodelet::configCb, this, _1, _2);
+      boost::bind(&LibSGMDisparityNode::configCb, this, _1, _2);
   reconfigure_server_.reset(new ReconfigureServer(config_mutex_, private_nh));
   reconfigure_server_->setCallback(f);
 
   // Monitor whether anyone is subscribed to the output
   ros::SubscriberStatusCallback connect_cb =
-      boost::bind(&LibSGMDisparityNodelet::connectCb, this);
+      boost::bind(&LibSGMDisparityNode::connectCb, this);
   // Make sure we don't enter connectCb() between advertising and assigning to
   // pub_disparity_
   boost::lock_guard<boost::mutex> lock(connect_mutex_);
@@ -143,7 +153,7 @@ void LibSGMDisparityNodelet::onInit() {
 }
 
 // Handles (un)subscribing when clients (un)subscribe
-void LibSGMDisparityNodelet::connectCb() {
+void LibSGMDisparityNode::connectCb() {
   boost::lock_guard<boost::mutex> lock(connect_mutex_);
   if (pub_disparity_.getNumSubscribers() == 0) {
     sub_l_image_.unsubscribe();
@@ -164,10 +174,10 @@ void LibSGMDisparityNodelet::connectCb() {
   }
 }
 
-void LibSGMDisparityNodelet::imageCb(const ImageConstPtr &l_image_msg,
-                                     const CameraInfoConstPtr &l_info_msg,
-                                     const ImageConstPtr &r_image_msg,
-                                     const CameraInfoConstPtr &r_info_msg) {
+void LibSGMDisparityNode::imageCb(const ImageConstPtr &l_image_msg,
+                                  const CameraInfoConstPtr &l_info_msg,
+                                  const ImageConstPtr &r_image_msg,
+                                  const CameraInfoConstPtr &r_info_msg) {
   // Update the camera model
   model_.fromCameraInfo(l_info_msg, r_info_msg);
 
@@ -219,7 +229,7 @@ void LibSGMDisparityNodelet::imageCb(const ImageConstPtr &l_image_msg,
   pub_disparity_.publish(disp_msg);
 }
 
-void LibSGMDisparityNodelet::configCb(Config &config, uint32_t level) {
+void LibSGMDisparityNode::configCb(Config &config, uint32_t level) {
   // Tweak all settings to be valid
   config.disparity_range =
       (config.disparity_range / 16) * 16; // must be multiple of 16
@@ -240,6 +250,6 @@ void LibSGMDisparityNodelet::configCb(Config &config, uint32_t level) {
 } // namespace gpu_stereo_image_proc
 
 // Register nodelet
-#include <pluginlib/class_list_macros.h>
-PLUGINLIB_EXPORT_CLASS(gpu_stereo_image_proc::LibSGMDisparityNodelet,
-                       nodelet::Nodelet)
+// #include <pluginlib/class_list_macros.h>
+// PLUGINLIB_EXPORT_CLASS(gpu_stereo_image_proc::LibSGMDisparityNode,
+//                        nodelet::Nodelet)

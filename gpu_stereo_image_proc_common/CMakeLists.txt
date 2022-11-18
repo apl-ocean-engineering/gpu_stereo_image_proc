@@ -19,12 +19,12 @@ find_package(image_transport REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(sensor_msgs REQUIRED)
 # find_package(cv_bridge REQUIRED)
-# find_package(cv_bridge dynamic_reconfigure image_geometry 
-#         image_proc image_transport message_filters nodelet 
+# find_package(cv_bridge dynamic_reconfigure image_geometry
+#         image_proc image_transport message_filters nodelet
 #         sensor_msgs stereo_msgs)
 
-# find_package(cv_bridge 
-#         image_proc image_transport message_filters nodelet 
+# find_package(cv_bridge
+#         image_proc image_transport message_filters nodelet
 #         sensor_msgs stereo_msgs)
 find_package(Boost REQUIRED COMPONENTS thread)
 
@@ -50,7 +50,7 @@ endif()
 
 include_directories(include)
 
-find_package(OpenCV 4 REQUIRED) 
+find_package(OpenCV 4 REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS} ${image_proc_INCLUDE_DIRS})
 
 # find_package(CUDA REQUIRED)
@@ -75,16 +75,19 @@ add_library(${PROJECT_NAME}
 ament_target_dependencies(${PROJECT_NAME} image_proc sensor_msgs)
 
 target_link_libraries(${PROJECT_NAME}
-                                      ${OpenCV_LIBRARIES})
+                                      ${OpenCV_LIBRARIES} )
 
 install(TARGETS ${PROJECT_NAME}
         DESTINATION lib/${PROJECT_NAME}
 )
 
 # install the include directory
-install(DIRECTORY include/gpu_stereo_image_proc/
-        DESTINATION include/${PROJECT_NAME}#${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+install(DIRECTORY include/
+        DESTINATION include
+        #${CATKIN_PACKAGE_INCLUDE_DESTINATION}
 )
+
+ament_export_include_directories(include) #Apparently this is needed for inporting of includes in other packages
 
 ament_package()
 
