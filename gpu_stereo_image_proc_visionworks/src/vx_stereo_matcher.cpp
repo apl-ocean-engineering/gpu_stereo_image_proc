@@ -54,8 +54,10 @@ VXStereoMatcher::VXStereoMatcher(const VXStereoMatcherParams &params)
       left_scaled_(nullptr),
       right_scaled_(nullptr),
       disparity_(nullptr),
-      left_scaler_(new VxGaussianImageScaler(params.downsample_log2)),
-      right_scaler_(new VxGaussianImageScaler(params.downsample_log2)),
+      left_scaler_(new VxGaussianImageScaler(params.downsample_log2,
+                                             params.x_padding())),
+      right_scaler_(new VxGaussianImageScaler(params.downsample_log2,
+                                              params.x_padding())),
       params_(params) {
   vx_status status;
 

@@ -35,64 +35,109 @@
 
 namespace gpu_stereo_image_proc_visionworks {
 
-VxImageScaler::VxImageScaler(unsigned int downsample_log2)
-    : downsample_log2_(downsample_log2) {}
+VxImageScaler::VxImageScaler(unsigned int downsample_log2,
+                             unsigned int max_disparity)
+    : downsample_log2_(downsample_log2), max_disparity_(max_disparity) {}
 
-VxGaussianImageScaler::VxGaussianImageScaler(unsigned int downsample_log2)
-    : VxImageScaler(downsample_log2), images_(downsample_log2) {
-  ;
+VxGaussianImageScaler::VxGaussianImageScaler(unsigned int downsample_log2,
+                                             unsigned int max_disparity)
+    : VxImageScaler(downsample_log2, max_disparity), images_(downsample_log2) {
+  assert(downsample_log2_ >= 0);
+
+  images_.resize(downsample_log2_);
 }
 
 vx_image VxGaussianImageScaler::addToGraph(vx_context context, vx_graph graph,
                                            vx_image input) {
-  // Retrieve size of input image
+  // Retrieve size and format of input image
   vx_uint32 input_width, input_height;
   assert(VX_SUCCESS ==
          vxQueryImage(input, VX_IMAGE_WIDTH, &input_width, sizeof(vx_uint32)));
   assert(VX_SUCCESS == vxQueryImage(input, VX_IMAGE_HEIGHT, &input_height,
                                     sizeof(vx_uint32)));
 
-  if (downsample_log2_ == 0) {
-    output_size_.width = input_width;
-    output_size_.height = input_height;
-    return input;
-  }
-
   vx_df_image input_format;
   assert(VX_SUCCESS == vxQueryImage(input, VX_IMAGE_FORMAT, &input_format,
                                     sizeof(vx_df_image)));
 
-  uint32_t layer_width = input_width;
-  uint32_t layer_height = input_height;
-
-  const vx_int32 gaussian_kernel_size = 3;
-
-  for (int i = 0; i < downsample_log2_; i++) {
-    layer_width = (layer_width + 1) / 2;
-    layer_height = (layer_height + 1) / 2;
-
-    images_[i] =
-        vxCreateImage(context, layer_width, layer_height, input_format);
-
-    VX_CHECK_STATUS(vxGetStatus((vx_reference)images_[i]));
-
-    if (i == 0) {
-      vx_node scale_node = vxHalfScaleGaussianNode(graph, input, images_[0],
-                                                   gaussian_kernel_size);
-      vxReleaseNode(&scale_node);
+  if (downsample_log2_ == 0) {
+    if (max_disparity_ == 0) {
+      output_image_ = input;
     } else {
-      vx_node scale_node = vxHalfScaleGaussianNode(
-          graph, images_[i - 1], images_[i], gaussian_kernel_size);
+      images_.resize(1);
 
+      output_image_ = vxCreateImage(context, input_width * 2 * max_disparity_,
+                                    input_height, input_format);
+      VX_CHECK_STATUS(vxGetStatus((vx_reference)output_image_));
+
+      vx_rectangle_t roi;
+      roi.start_x = max_disparity_;
+      roi.end_x = max_disparity_ + input_width;
+      roi.start_y = 0;
+      roi.start_y = input_height;
+
+      images_[0] = vxCreateImageFromROI(input, &roi);
+
+      vx_node copy_node = nvxCopyImageNode(graph, input, images_[0]);
       VX_CHECK_STATUS(vxVerifyGraph(graph));
-      vxReleaseNode(&scale_node);
+      vxReleaseNode(&copy_node);
+    }
+
+  } else {
+    uint32_t layer_width = input_width;
+    uint32_t layer_height = input_height;
+    const vx_int32 gaussian_kernel_size = 3;
+
+    for (int i = 0; i < downsample_log2_; i++) {
+      layer_width = (layer_width + 1) / 2;
+      layer_height = (layer_height + 1) / 2;
+
+      if (i == 0) {
+        vx_node scale_node = vxHalfScaleGaussianNode(graph, input, images_[0],
+                                                     gaussian_kernel_size);
+        vxReleaseNode(&scale_node);
+      } else if (i == downsample_log2_ - 1) {
+        if (max_disparity_ == 0) {
+          images_[i] =
+              vxCreateImage(context, layer_width, layer_height, input_format);
+          VX_CHECK_STATUS(vxGetStatus((vx_reference)images_[i]));
+
+          output_image_ = images_[i];
+
+        } else {
+          output_image_ =
+              vxCreateImage(context, layer_width * 2 * max_disparity_,
+                            layer_height, input_format);
+          VX_CHECK_STATUS(vxGetStatus((vx_reference)output_image_));
+
+          vx_rectangle_t roi;
+          roi.start_x = max_disparity_;
+          roi.end_x = max_disparity_ + layer_width;
+          roi.start_y = 0;
+          roi.start_y = layer_height;
+
+          images_[i] = vxCreateImageFromROI(images_[i - 1], &roi);
+        }
+      } else {
+        images_[i] =
+            vxCreateImage(context, layer_width, layer_height, input_format);
+        VX_CHECK_STATUS(vxGetStatus((vx_reference)images_[i]));
+
+        vx_node scale_node = vxHalfScaleGaussianNode(
+            graph, images_[i - 1], images_[i], gaussian_kernel_size);
+
+        VX_CHECK_STATUS(vxVerifyGraph(graph));
+        vxReleaseNode(&scale_node);
+      }
     }
   }
 
-  output_size_.width = layer_width;
-  output_size_.height = layer_height;
+  assert(VX_SUCCESS == vxQueryImage(output_image_, VX_IMAGE_WIDTH,
+                                    &output_size_.width, sizeof(vx_uint32)));
+  assert(VX_SUCCESS == vxQueryImage(output_image_, VX_IMAGE_HEIGHT,
+                                    &output_size_.height, sizeof(vx_uint32)));
 
-  return images_.back();
+  return output_image_;
 }
 
 }  // namespace gpu_stereo_image_proc_visionworks

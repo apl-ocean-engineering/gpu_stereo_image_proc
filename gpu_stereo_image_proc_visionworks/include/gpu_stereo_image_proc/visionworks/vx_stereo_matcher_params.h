@@ -74,6 +74,8 @@ struct VXStereoMatcherParams {
 
   int downsample() const { return (1 << downsample_log2); }
 
+  int x_padding() const { return max_disparity; }
+
   int downsample_log2;
   int min_disparity;
   int max_disparity;
