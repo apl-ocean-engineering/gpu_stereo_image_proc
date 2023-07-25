@@ -324,6 +324,8 @@ void VPIDisparityNodelet::configCb(Config &config, uint32_t level) {
   params_.quality = config.quality;
   params_.confidence_threshold = config.confidence_threshold;
 
+  params_.do_disparity_padding = config.do_disparity_padding;
+
   update_stereo_matcher();
 }
 

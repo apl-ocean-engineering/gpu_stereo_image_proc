@@ -48,7 +48,8 @@ struct VPIStereoMatcherParams {
         window_size(5),
         quality(6),
         confidence_threshold(32767),
-        filtering(Filtering_None) {}
+        filtering(Filtering_None),
+        do_disparity_padding(true) {}
 
   void set_image_size(const cv::Size sz, int img_type) {
     _image_size.width = sz.width;
@@ -56,15 +57,35 @@ struct VPIStereoMatcherParams {
     _image_type = img_type;
   }
 
-  const cv::Size image_size() const { return _image_size; }
   const int image_type() const { return _image_type; }
+
+  // image_size is the **input** image size
+  // scaled_image_size is the scaled-down image size
+  // disparity_image_size is the scaled_down image size with disparity padding
+  // (if used)
+  const cv::Size image_size() const { return _image_size; }
   const cv::Size scaled_image_size() const {
     return cv::Size(_image_size.width >> downsample_log2,
                     _image_size.height >> downsample_log2);
   }
 
+  const cv::Size disparity_image_size() const {
+    const cv::Size ss(scaled_image_size());
+    return cv::Size(ss.width + 2 * disparity_padding(), ss.height);
+  }
+
   int downsample() const { return (1 << downsample_log2); }
 
+  int disparity_padding() const {
+#if NV_VPI_VERSION < VPI_VERSION_WITH_VIEWS
+    // Older versions of VPI don't have views, we can't do disparity padding
+    return 0;
+#else
+    return do_disparity_padding ? max_disparity : 0;
+#endif
+  }
+
+  bool do_disparity_padding;
   int downsample_log2;
   int max_disparity, window_size;
   int quality, confidence_threshold;
@@ -80,6 +101,11 @@ struct VPIStereoMatcherParams {
     ROS_INFO("          Quality : %d", quality);
     ROS_INFO(" Confidence threshold : %d", confidence_threshold);
     ROS_INFO("        Filtering : %s", disparity_filter_as_string());
+#if NV_VPI_VERSION < VPI_VERSION_WITH_VIEWS
+    ROS_INFO("     Edge padding : VPI too old, cannot do");
+#else
+    ROS_INFO("     Edge padding : %s", (do_disparity_padding ? "YES" : "NO"));
+#endif
     ROS_INFO("===================================");
   }
 
