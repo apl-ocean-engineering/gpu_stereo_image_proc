@@ -36,12 +36,14 @@
 namespace gpu_stereo_image_proc_visionworks {
 
 VxImageScaler::VxImageScaler(unsigned int downsample_log2,
-                             unsigned int max_disparity)
-    : downsample_log2_(downsample_log2), max_disparity_(max_disparity) {}
+                             unsigned int disparity_padding)
+    : downsample_log2_(downsample_log2),
+      disparity_padding_(disparity_padding) {}
 
 VxGaussianImageScaler::VxGaussianImageScaler(unsigned int downsample_log2,
-                                             unsigned int max_disparity)
-    : VxImageScaler(downsample_log2, max_disparity), images_(downsample_log2) {
+                                             unsigned int disparity_padding)
+    : VxImageScaler(downsample_log2, disparity_padding),
+      images_(downsample_log2) {
   assert(downsample_log2_ >= 0);
 
   images_.resize(downsample_log2_);
@@ -49,6 +51,28 @@ VxGaussianImageScaler::VxGaussianImageScaler(unsigned int downsample_log2,
 
 vx_image VxGaussianImageScaler::addToGraph(vx_context context, vx_graph graph,
                                            vx_image input) {
+  // This function returns the final stage of the scaler
+  // (remembering that vw_image is a non-smart pointer and can be
+  // referenced multiple times.
+  //
+  // This function needs to handle four different cases.
+  //
+  // Not downsampling (downsample_log2 == 0) AND Not padding:
+  //     output_image_ = input
+  //
+  // Not downsampling (downsample_log2 == 0) AND Padding
+  //     output_image_ = image the size of (input + padding)
+  //     add a graph node which copies input into ROI of output_image_
+  //
+  // Downsampling and Not padding:
+  //     Create a pyramid of ScaleGaussianNodes
+  //     return output of lowest level
+  //
+  // Downsampling and Padding:
+  //     Create a pyramid of ScaleGaussianNodes
+  //     At lowest layer, output_image_ is (image + padding)
+  //     Final ScaleGaussianNode writes into ROI of output_image_
+
   // Retrieve size and format of input image
   vx_uint32 input_width, input_height;
   assert(VX_SUCCESS ==
@@ -61,22 +85,25 @@ vx_image VxGaussianImageScaler::addToGraph(vx_context context, vx_graph graph,
                                     sizeof(vx_df_image)));
 
   if (downsample_log2_ == 0) {
-    if (max_disparity_ == 0) {
+    // Not downsampling
+
+    if (disparity_padding_ == 0) {
       output_image_ = input;
     } else {
       images_.resize(1);
 
-      output_image_ = vxCreateImage(context, input_width * 2 * max_disparity_,
-                                    input_height, input_format);
+      output_image_ =
+          vxCreateImage(context, input_width * 2 * disparity_padding_,
+                        input_height, input_format);
       VX_CHECK_STATUS(vxGetStatus((vx_reference)output_image_));
 
       vx_rectangle_t roi;
-      roi.start_x = max_disparity_;
-      roi.end_x = max_disparity_ + input_width;
+      roi.start_x = disparity_padding_;
+      roi.end_x = disparity_padding_ + input_width;
       roi.start_y = 0;
       roi.start_y = input_height;
 
-      images_[0] = vxCreateImageFromROI(input, &roi);
+      images_[0] = vxCreateImageFromROI(output_image_, &roi);
 
       vx_node copy_node = nvxCopyImageNode(graph, input, images_[0]);
       VX_CHECK_STATUS(vxVerifyGraph(graph));
@@ -84,9 +111,13 @@ vx_image VxGaussianImageScaler::addToGraph(vx_context context, vx_graph graph,
     }
 
   } else {
+    // Downsampling
+
     uint32_t layer_width = input_width;
     uint32_t layer_height = input_height;
-    const vx_int32 gaussian_kernel_size = 3;
+
+    const vx_int32 gaussian_kernel_size =
+        3;  //\todo{} Do we care enough to make this configurable?
 
     for (int i = 0; i < downsample_log2_; i++) {
       layer_width = (layer_width + 1) / 2;
@@ -96,32 +127,34 @@ vx_image VxGaussianImageScaler::addToGraph(vx_context context, vx_graph graph,
         vx_node scale_node = vxHalfScaleGaussianNode(graph, input, images_[0],
                                                      gaussian_kernel_size);
         vxReleaseNode(&scale_node);
-      } else if (i == downsample_log2_ - 1) {
-        if (max_disparity_ == 0) {
+      } else {
+        if (i == downsample_log2_ - 1) {
+          if (disparity_padding_ == 0) {
+            images_[i] =
+                vxCreateImage(context, layer_width, layer_height, input_format);
+            VX_CHECK_STATUS(vxGetStatus((vx_reference)images_[i]));
+
+            output_image_ = images_[i];
+          } else {
+            output_image_ =
+                vxCreateImage(context, layer_width * 2 * disparity_padding_,
+                              layer_height, input_format);
+            VX_CHECK_STATUS(vxGetStatus((vx_reference)output_image_));
+
+            vx_rectangle_t roi;
+            roi.start_x = disparity_padding_;
+            roi.end_x = disparity_padding_ + layer_width;
+            roi.start_y = 0;
+            roi.start_y = layer_height;
+
+            images_[i] = vxCreateImageFromROI(images_[i - 1], &roi);
+          }
+
+        } else {
           images_[i] =
               vxCreateImage(context, layer_width, layer_height, input_format);
           VX_CHECK_STATUS(vxGetStatus((vx_reference)images_[i]));
-
-          output_image_ = images_[i];
-
-        } else {
-          output_image_ =
-              vxCreateImage(context, layer_width * 2 * max_disparity_,
-                            layer_height, input_format);
-          VX_CHECK_STATUS(vxGetStatus((vx_reference)output_image_));
-
-          vx_rectangle_t roi;
-          roi.start_x = max_disparity_;
-          roi.end_x = max_disparity_ + layer_width;
-          roi.start_y = 0;
-          roi.start_y = layer_height;
-
-          images_[i] = vxCreateImageFromROI(images_[i - 1], &roi);
         }
-      } else {
-        images_[i] =
-            vxCreateImage(context, layer_width, layer_height, input_format);
-        VX_CHECK_STATUS(vxGetStatus((vx_reference)images_[i]));
 
         vx_node scale_node = vxHalfScaleGaussianNode(
             graph, images_[i - 1], images_[i], gaussian_kernel_size);

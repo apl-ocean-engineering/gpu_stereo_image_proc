@@ -222,7 +222,20 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
     stereo_matcher_->compute(l_image, r_image);
   }
 
-  cv::Mat_<int16_t> disparityS16 = stereo_matcher_->disparity();
+  // _dispaS16 is a local temporary;  disparityS16 is the "real working copy"
+  // but need to remove disparity padding, if used.
+  cv::Mat_<int16_t> _dispS16 = stereo_matcher_->disparity();
+  cv::Mat_<int16_t> disparityS16;
+
+  if (stereo_matcher_->params().do_disparity_padding) {
+    const auto padding = stereo_matcher_->params().disparity_padding();
+    disparityS16 = cv::Mat(
+        _dispS16,
+        cv::Rect(padding, 0, _dispS16.cols - 2 * padding, _dispS16.rows));
+  } else {
+    disparityS16 = _dispS16;
+  }
+
   DisparityImageGenerator dg(scaled_model_,
                              stereo_matcher_->params().min_disparity,
                              stereo_matcher_->params().max_disparity,
@@ -364,6 +377,7 @@ void VXDisparityNodelet::configCb(Config &config, uint32_t level) {
   params_.flags = flags;
   params_.scanline_mask = scanline_mask;
   params_.downsample_log2 = config.downsample;
+  params_.do_disparity_padding = config.do_disparity_padding;
 
   update_stereo_matcher();
 }

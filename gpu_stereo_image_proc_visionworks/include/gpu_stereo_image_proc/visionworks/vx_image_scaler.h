@@ -44,7 +44,7 @@ namespace gpu_stereo_image_proc_visionworks {
 
 class VxImageScaler {
  public:
-  VxImageScaler(unsigned int downsample_log2, unsigned int max_disparity);
+  VxImageScaler(unsigned int downsample_log2, unsigned int disparity_padding);
 
   virtual vx_image addToGraph(vx_context context, vx_graph graph,
                               vx_image input) = 0;
@@ -58,7 +58,7 @@ class VxImageScaler {
   cv::Size output_size_;
   vx_image output_image_;
 
-  unsigned int downsample_log2_, max_disparity_;
+  unsigned int downsample_log2_, disparity_padding_;
 
   // No default constructor
   VxImageScaler() = delete;
@@ -70,7 +70,7 @@ class VxImageScaler {
 class VxGaussianImageScaler : public VxImageScaler {
  public:
   VxGaussianImageScaler(unsigned int downsample_log2,
-                        unsigned int max_disparity);
+                        unsigned int disparity_padding);
 
   vx_image addToGraph(vx_context context, vx_graph graph,
                       vx_image input) override;

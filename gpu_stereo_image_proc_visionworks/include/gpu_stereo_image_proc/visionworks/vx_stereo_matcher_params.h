@@ -57,7 +57,8 @@ struct VXStereoMatcherParams {
         uniqueness_ratio(50),
         scanline_mask(NVX_SCANLINE_CROSS),
         flags(NVX_SGM_PYRAMIDAL_STEREO),
-        filtering(Filtering_None) {}
+        filtering(Filtering_None),
+        do_disparity_padding(true) {}
 
   void set_image_size(const cv::Size sz, int img_type) {
     _image_size.width = sz.width;
@@ -74,7 +75,9 @@ struct VXStereoMatcherParams {
 
   int downsample() const { return (1 << downsample_log2); }
 
-  int x_padding() const { return max_disparity; }
+  int disparity_padding() const {
+    return do_disparity_padding ? max_disparity : 0;
+  }
 
   int downsample_log2;
   int min_disparity;
@@ -82,6 +85,8 @@ struct VXStereoMatcherParams {
 
   int P1, P2, sad_win_size, ct_win_size, hc_win_size;
   int clip, max_diff, uniqueness_ratio, scanline_mask, flags;
+
+  bool do_disparity_padding;
 
   DisparityFiltering_t filtering;
 
@@ -126,6 +131,7 @@ struct VXStereoMatcherParams {
     ROS_INFO("   Scan type mask : 0x%02X", scanline_mask);
     ROS_INFO("            Flags : %02X", flags);
     ROS_INFO("        Filtering : %s", disparity_filter_as_string());
+    ROS_INFO("     Edge padding : %s", (do_disparity_padding ? "YES" : "NO"));
     ROS_INFO("===================================");
   }
 

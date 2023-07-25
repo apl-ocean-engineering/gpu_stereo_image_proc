@@ -51,8 +51,10 @@ VXBidirectionalStereoMatcher::VXBidirectionalStereoMatcher(
     : VXStereoMatcher(params) {
   vx_status status;
 
-  // The standard left/right -> disparity_ computation is added to
-  // the graph in VXStereoMatcher's constructor
+  // The standard left/right -> disparity_ computation is created in
+  // VXStereoMatcher's constructor
+
+  // This constructor adds the right/left -> rl_disparity calculation
 
   flipped_left_ =
       vxCreateImage(context_, left_scaler_->outputSize().width,
@@ -133,12 +135,13 @@ void VXBidirectionalStereoMatcher::compute(cv::InputArray left,
     wls->setLambda(params_.wls_filter_params.lambda);
     wls->setLRCthresh(params_.wls_filter_params.lrc_threshold);
 
-    // Supply our own ROI otherwise it drops half of the image
     const int border = params_.max_disparity;
     const cv::Rect roi(border, 0, left_map.getMat().cols - 2 * border,
                        left_map.getMat().rows);
     wls->filter(lr_disparity_map.getMat(), left_map.getMat(), filter_output_,
                 rl_disparity, roi, right_map.getMat());
+
+    // filter_output_ is the filter output returned by disparity()
 
     confidence_ = wls->getConfidenceMap();
   } else {
