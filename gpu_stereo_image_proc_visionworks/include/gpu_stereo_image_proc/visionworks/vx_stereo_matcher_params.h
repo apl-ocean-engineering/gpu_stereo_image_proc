@@ -68,10 +68,11 @@ struct VXStereoMatcherParams {
 
   const cv::Size image_size() const { return _image_size; }
   const int image_type() const { return _image_type; }
-  const cv::Size scaled_image_size() const {
-    return cv::Size(_image_size.width >> downsample_log2,
-                    _image_size.height >> downsample_log2);
-  }
+
+  // const cv::Size scaled_image_size() const {
+  //   return cv::Size(_image_size.width >> downsample_log2,
+  //                   _image_size.height >> downsample_log2);
+  // }
 
   int downsample() const { return (1 << downsample_log2); }
 

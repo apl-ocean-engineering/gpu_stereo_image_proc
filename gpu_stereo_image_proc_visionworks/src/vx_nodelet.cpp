@@ -229,11 +229,19 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
 
   if (stereo_matcher_->params().do_disparity_padding) {
     const auto padding = stereo_matcher_->params().disparity_padding();
-    disparityS16 = cv::Mat(
-        _dispS16,
-        cv::Rect(padding, 0, _dispS16.cols - 2 * padding, _dispS16.rows));
+    const auto roi =
+        cv::Rect(padding, 0, _dispS16.cols - 2 * padding, _dispS16.rows);
+    disparityS16 = cv::Mat(_dispS16, roi);
+
+    NODELET_INFO_STREAM("ROI is (" << roi.x << "," << roi.y << ") to ("
+                                   << roi.x + roi.width << ","
+                                   << roi.y + roi.height << ")");
   } else {
     disparityS16 = _dispS16;
+
+    const auto sz = disparityS16.size();
+    NODELET_INFO_STREAM("Disparity is (" << sz.width << " x " << sz.height
+                                         << ")");
   }
 
   DisparityImageGenerator dg(scaled_model_,
@@ -250,7 +258,18 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
           std::dynamic_pointer_cast<VXBidirectionalStereoMatcher>(
               stereo_matcher_)) {
     // Publish confidence
-    cv::Mat confidence = bm->confidenceMat();
+    cv::Mat _confidence = bm->confidenceMat();
+    cv::Mat confidence;
+    // Must ROI confidence as well
+    if (stereo_matcher_->params().do_disparity_padding) {
+      const auto padding = stereo_matcher_->params().disparity_padding();
+      const auto roi =
+          cv::Rect(padding, 0, _dispS16.cols - 2 * padding, _dispS16.rows);
+      confidence = cv::Mat(_confidence, roi);
+    } else {
+      confidence = _confidence;
+    }
+
     cv_bridge::CvImage confidence_bridge(l_image_msg->header, "32FC1",
                                          confidence);
     pub_confidence_.publish(confidence_bridge.toImageMsg());

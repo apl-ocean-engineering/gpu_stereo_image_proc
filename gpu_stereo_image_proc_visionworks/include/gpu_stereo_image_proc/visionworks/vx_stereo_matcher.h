@@ -78,6 +78,15 @@ class VXStereoMatcher {
   }
 
  protected:
+  cv::Size leftScaledSize() const {
+    cv::Size disparity_size;
+    VX_CHECK_STATUS(vxQueryImage(left_scaled_, VX_IMAGE_WIDTH,
+                                 &disparity_size.width, sizeof(vx_uint32)));
+    VX_CHECK_STATUS(vxQueryImage(left_scaled_, VX_IMAGE_HEIGHT,
+                                 &disparity_size.height, sizeof(vx_uint32)));
+    return disparity_size;
+  }
+
   vx_context context_;
   vx_graph graph_;
 

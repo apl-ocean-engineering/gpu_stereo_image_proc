@@ -56,19 +56,18 @@ VXBidirectionalStereoMatcher::VXBidirectionalStereoMatcher(
 
   // This constructor adds the right/left -> rl_disparity calculation
 
-  flipped_left_ =
-      vxCreateImage(context_, left_scaler_->outputSize().width,
-                    left_scaler_->outputSize().height, VX_DF_IMAGE_U8);
+  const cv::Size scaledSize(leftScaledSize());
+
+  flipped_left_ = vxCreateImage(context_, scaledSize.width, scaledSize.height,
+                                VX_DF_IMAGE_U8);
   VX_CHECK_STATUS(vxGetStatus((vx_reference)flipped_left_));
 
-  flipped_right_ =
-      vxCreateImage(context_, right_scaler_->outputSize().width,
-                    right_scaler_->outputSize().height, VX_DF_IMAGE_U8);
+  flipped_right_ = vxCreateImage(context_, scaledSize.width, scaledSize.height,
+                                 VX_DF_IMAGE_U8);
   VX_CHECK_STATUS(vxGetStatus((vx_reference)flipped_right_));
 
-  flipped_rl_disparity_ =
-      vxCreateImage(context_, left_scaler_->outputSize().width,
-                    left_scaler_->outputSize().height, VX_DF_IMAGE_S16);
+  flipped_rl_disparity_ = vxCreateImage(context_, scaledSize.width,
+                                        scaledSize.height, VX_DF_IMAGE_S16);
   VX_CHECK_STATUS(vxGetStatus((vx_reference)flipped_rl_disparity_));
 
   vx_node left_flip_node = nvxFlipImageNode(graph_, left_scaled_, flipped_left_,

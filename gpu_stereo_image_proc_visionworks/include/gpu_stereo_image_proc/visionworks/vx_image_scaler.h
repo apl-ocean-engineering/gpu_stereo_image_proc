@@ -52,11 +52,11 @@ class VxImageScaler {
   int downsample() const { return 2 ^ downsample_log2_; }
 
   // Note outputSize() is not set until addToGraph is called
-  const cv::Size outputSize() const { return output_size_; }
+  // const cv::Size outputSize() const { return output_size_; }
 
  protected:
-  cv::Size output_size_;
-  vx_image output_image_;
+  // cv::Size output_size_;
+  // vx_image output_image_;
 
   unsigned int downsample_log2_, disparity_padding_;
 
@@ -79,6 +79,9 @@ class VxGaussianImageScaler : public VxImageScaler {
   // This class downsamples using a Visionworks call which halves image size,
   // so we maintain a pyramid of intermediate images
   std::vector<vx_image> images_;
+
+  void addImage(const size_t idx, vx_context context, unsigned int width,
+                unsigned int height, vx_df_image format);
 
   // No default constructor
   VxGaussianImageScaler() = delete;

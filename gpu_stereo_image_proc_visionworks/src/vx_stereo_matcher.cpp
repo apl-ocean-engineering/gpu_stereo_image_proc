@@ -75,13 +75,15 @@ VXStereoMatcher::VXStereoMatcher(const VXStereoMatcherParams &params)
                                params.image_size().height, VX_DF_IMAGE_U8);
   VX_CHECK_STATUS(vxGetStatus((vx_reference)right_image_));
 
-  disparity_ =
-      vxCreateImage(context_, params.scaled_image_size().width,
-                    params.scaled_image_size().height, VX_DF_IMAGE_S16);
-  VX_CHECK_STATUS(vxGetStatus((vx_reference)disparity_));
-
   left_scaled_ = left_scaler_->addToGraph(context_, graph_, left_image_);
   right_scaled_ = right_scaler_->addToGraph(context_, graph_, right_image_);
+
+  disparity_ = vxCreateImage(context_, leftScaledSize().width,
+                             leftScaledSize().height, VX_DF_IMAGE_S16);
+  VX_CHECK_STATUS(vxGetStatus((vx_reference)disparity_));
+
+  std::cout << "Disparity image is " << leftScaledSize().width << " x "
+            << leftScaledSize().height << std::endl;
 
   vx_node sgm_node = nvxSemiGlobalMatchingNode(
       graph_, left_scaled_, right_scaled_, disparity_, params.min_disparity,
