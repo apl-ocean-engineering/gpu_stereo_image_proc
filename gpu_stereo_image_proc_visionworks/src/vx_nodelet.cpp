@@ -233,15 +233,15 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
         cv::Rect(padding, 0, _dispS16.cols - 2 * padding, _dispS16.rows);
     disparityS16 = cv::Mat(_dispS16, roi);
 
-    NODELET_INFO_STREAM("ROI is (" << roi.x << "," << roi.y << ") to ("
-                                   << roi.x + roi.width << ","
-                                   << roi.y + roi.height << ")");
+    // NODELET_INFO_STREAM("ROI is (" << roi.x << "," << roi.y << ") to ("
+    //                                << roi.x + roi.width << ","
+    //                                << roi.y + roi.height << ")");
   } else {
     disparityS16 = _dispS16;
 
     const auto sz = disparityS16.size();
-    NODELET_INFO_STREAM("Disparity is (" << sz.width << " x " << sz.height
-                                         << ")");
+    // NODELET_INFO_STREAM("Disparity is (" << sz.width << " x " << sz.height
+    //                                      << ")");
   }
 
   DisparityImageGenerator dg(scaled_model_,

@@ -49,7 +49,7 @@ class VxImageScaler {
   virtual vx_image addToGraph(vx_context context, vx_graph graph,
                               vx_image input) = 0;
 
-  int downsample() const { return 2 ^ downsample_log2_; }
+  // int downsample() const { return 2 ^ downsample_log2_; }
 
   // Note outputSize() is not set until addToGraph is called
   // const cv::Size outputSize() const { return output_size_; }
@@ -80,8 +80,8 @@ class VxGaussianImageScaler : public VxImageScaler {
   // so we maintain a pyramid of intermediate images
   std::vector<vx_image> images_;
 
-  void addImage(const size_t idx, vx_context context, unsigned int width,
-                unsigned int height, vx_df_image format);
+  void addImage(const size_t idx, vx_context context, const cv::Size &sz,
+                vx_df_image format);
 
   // No default constructor
   VxGaussianImageScaler() = delete;

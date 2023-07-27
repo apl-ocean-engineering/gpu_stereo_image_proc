@@ -140,8 +140,7 @@ void VXBidirectionalStereoMatcher::compute(cv::InputArray left,
     wls->filter(lr_disparity_map.getMat(), left_map.getMat(), filter_output_,
                 rl_disparity, roi, right_map.getMat());
 
-    // filter_output_ is the filter output returned by disparity()
-
+    // filter_output_ is the Mat returned by disparity()
     confidence_ = wls->getConfidenceMap();
   } else {
     ROS_WARN(
