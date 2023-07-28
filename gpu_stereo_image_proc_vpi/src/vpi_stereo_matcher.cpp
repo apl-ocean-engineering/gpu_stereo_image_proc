@@ -216,14 +216,14 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
   vpiImageLock(disparity_, VPI_LOCK_READ, &disparityData);
   vpiImageDataExportOpenCVMat(disparityData, &disparity_m_);
 
-  double mmin, mmax;
-  cv::minMaxLoc(dispMat, &mmin, &mmax);
-  ROS_INFO_STREAM_THROTTLE(1, "Disparity min " << mmin << "; max = " << mmax);
+  // double mmin, mmax;
+  // cv::minMaxLoc(dispMat, &mmin, &mmax);
+  // ROS_INFO_STREAM_THROTTLE(1, "Disparity min " << mmin << "; max = " <<
+  // mmax);
 
-  // Do this as a copy-to for now
-  //   disparity_m_ = dispMat.copyTo(disparity_m_);
-
-  //   vpiImageUnlock(disparity_);
+  // // Do this as a copy-to for now
+  // dispMat.copyTo(disparity_m_);
+  // vpiImageUnlock(disparity_);
 
   vpiImageDestroy(left);
   vpiImageDestroy(right);

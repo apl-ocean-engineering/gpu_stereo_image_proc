@@ -118,6 +118,7 @@ struct VXStereoMatcherParams {
 
   void dump() const {
     ROS_INFO("===================================");
+    ROS_INFO("~~ Visionworks Matcher ~~");
     ROS_INFO("original img size : w %d, h %d", image_size().width,
              image_size().height);
     ROS_INFO("       Downsample : %d", downsample());

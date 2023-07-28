@@ -143,6 +143,8 @@ void VPIDisparityNodelet::onInit() {
   ros::NodeHandle &nh = getNodeHandle();
   ros::NodeHandle &private_nh = getPrivateNodeHandle();
 
+  code_timing_.reset(new code_timing::CodeTiming(nh, "VPIDisparityNodelet"));
+
   // Set up dynamic reconfiguration
   ReconfigureServer::CallbackType f =
       boost::bind(&VPIDisparityNodelet::configCb, this, _1, _2);
@@ -238,9 +240,9 @@ void VPIDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
 
   cv::Mat disparityS16 = stereo_matcher_->disparity();
 
-  // double mmin, mmax;
-  // cv::minMaxLoc(disparityS16, &mmin, &mmax);
-  // NODELET_INFO_STREAM("Disparity min " << mmin << "; " << mmax);
+  double mmin, mmax;
+  cv::minMaxLoc(disparityS16, &mmin, &mmax);
+  NODELET_INFO_STREAM("Disparity min " << mmin << "; " << mmax);
 
   // if (debug_topics_) {
   //   DisparityImageGenerator raw_dg(l_image_msg, disparityS16, scaled_model,
