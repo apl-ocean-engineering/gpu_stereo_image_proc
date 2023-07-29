@@ -67,7 +67,8 @@ class VXStereoMatcher {
   cv::Mat scaledLeftRect() const { return vxImageToMatWrapper(left_scaled_); }
 
   virtual cv::Mat disparity() const {
-    if (params_.filtering == VXStereoMatcherParams::Filtering_Bilateral) {
+    if (params_.filtering ==
+        VXStereoMatcherParams::DisparityFiltering::Bilateral) {
       // I suspect this is inefficient...
       cv::Mat out;
       g_filtered_.download(out);

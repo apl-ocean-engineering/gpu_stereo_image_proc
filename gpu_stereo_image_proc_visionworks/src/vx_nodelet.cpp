@@ -83,12 +83,16 @@ class VXDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
   boost::shared_ptr<ReconfigureServer> reconfigure_server_;
 
+  ros::NodeHandle bilateral_nh_, wls_nh_;
   typedef gpu_stereo_image_proc::DisparityBilateralFilterConfig
       BilateralFilterConfig;
+  typedef dynamic_reconfigure::Server<BilateralFilterConfig>
+      BilateralReconfigureServer;
   boost::shared_ptr<dynamic_reconfigure::Server<BilateralFilterConfig>>
       dyncfg_bilateral_filter_;
 
   typedef gpu_stereo_image_proc::DisparityWLSFilterConfig WLSFilterConfig;
+  typedef dynamic_reconfigure::Server<WLSFilterConfig> WLSReconfigureServer;
   boost::shared_ptr<dynamic_reconfigure::Server<WLSFilterConfig>>
       dyncfg_wls_filter_;
 
@@ -136,6 +140,16 @@ void VXDisparityNodelet::onInit() {
       boost::bind(&VXDisparityNodelet::configCb, this, _1, _2);
   reconfigure_server_.reset(new ReconfigureServer(private_nh));
   reconfigure_server_->setCallback(f);
+
+  bilateral_nh_ = ros::NodeHandle(nh, "~bilateral_filter");
+  dyncfg_bilateral_filter_.reset(new BilateralReconfigureServer(bilateral_nh_));
+  dyncfg_bilateral_filter_->setCallback(
+      boost::bind(&VXDisparityNodelet::bilateralConfigCb, this, _1, _2));
+
+  wls_nh_ = ros::NodeHandle(nh, "~wls_filter");
+  dyncfg_wls_filter_.reset(new WLSReconfigureServer(wls_nh_));
+  dyncfg_wls_filter_->setCallback(
+      boost::bind(&VXDisparityNodelet::wlsConfigCb, this, _1, _2));
 
   code_timing_.reset(new code_timing::CodeTiming(nh));
 
@@ -368,16 +382,17 @@ void VXDisparityNodelet::configCb(Config &config, uint32_t level) {
 
   if (config.disparity_filter == VXSGBM_BilateralFilter) {
     ROS_INFO("Enabling bilateral filtering");
-    params_.filtering = VXStereoMatcherParams::Filtering_Bilateral;
-    // } else if (config.disparity_filter == VXSGBM_WLSFilter_LeftOnly) {
-    //   ROS_INFO("Enabling Left-only WLS filtering");
-    //   params_.filtering = VXStereoMatcherParams::Filtering_WLS_LeftOnly;
+    params_.filtering = VXStereoMatcherParams::DisparityFiltering::Bilateral;
+  } else if (config.disparity_filter == VXSGBM_WLSFilter_LeftOnly) {
+    ROS_INFO("Enabling Left-only WLS filtering");
+    params_.filtering = VXStereoMatcherParams::DisparityFiltering::WLS_LeftOnly;
   } else if (config.disparity_filter == VXSGBM_WLSFilter_LeftRight) {
     ROS_INFO("Enabling Left-Right WLS filtering");
-    params_.filtering = VXStereoMatcherParams::Filtering_WLS_LeftRight;
+    params_.filtering =
+        VXStereoMatcherParams::DisparityFiltering::WLS_LeftRight;
   } else {
     ROS_INFO("Disabling filtering");
-    params_.filtering = VXStereoMatcherParams::Filtering_None;
+    params_.filtering = VXStereoMatcherParams::DisparityFiltering::None;
   }
 
   // check stereo method
@@ -431,7 +446,8 @@ bool VXDisparityNodelet::update_stereo_matcher() {
 
   params_.dump();
   ROS_WARN("Creating new stereo_matcher");
-  if (params_.filtering == VXStereoMatcherParams::Filtering_WLS_LeftRight) {
+  if (params_.filtering ==
+      VXStereoMatcherParams::DisparityFiltering::WLS_LeftRight) {
     ROS_INFO("Creating VXBidirectionalStereoMatcher");
     stereo_matcher_.reset(new VXBidirectionalStereoMatcher(params_));
   } else {

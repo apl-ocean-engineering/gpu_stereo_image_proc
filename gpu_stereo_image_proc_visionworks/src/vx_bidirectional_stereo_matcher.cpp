@@ -101,7 +101,8 @@ void VXBidirectionalStereoMatcher::compute(cv::InputArray left,
   const auto status = vxProcessGraph(graph_);
   ROS_ASSERT(status == VX_SUCCESS);
 
-  if (params_.filtering == VXStereoMatcherParams::Filtering_WLS_LeftRight) {
+  if (params_.filtering ==
+      VXStereoMatcherParams::DisparityFiltering::WLS_LeftRight) {
     cv::Mat rl_disparity;
 
     nvx_cv::VXImageToCVMatMapper lr_disparity_map(
@@ -133,10 +134,14 @@ void VXBidirectionalStereoMatcher::compute(cv::InputArray left,
         cv::ximgproc::createDisparityWLSFilter(sgbm);
     wls->setLambda(params_.wls_filter_params.lambda);
     wls->setLRCthresh(params_.wls_filter_params.lrc_threshold);
+    wls->setDepthDiscontinuityRadius(
+        params_.wls_filter_params.discontinuity_radius);
+    wls->setSigmaColor(params_.wls_filter_params.sigma_color);
 
-    const int border = params_.max_disparity;
+    const int border = params_.sad_win_size;
     const cv::Rect roi(border, 0, left_map.getMat().cols - 2 * border,
                        left_map.getMat().rows);
+
     wls->filter(lr_disparity_map.getMat(), left_map.getMat(), filter_output_,
                 rl_disparity, roi, right_map.getMat());
 

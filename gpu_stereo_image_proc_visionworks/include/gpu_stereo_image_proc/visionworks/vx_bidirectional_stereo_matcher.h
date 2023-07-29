@@ -66,10 +66,10 @@ class VXBidirectionalStereoMatcher : public VXStereoMatcher {
 
   cv::Mat filter_output_, confidence_;
 
-  struct WLSParameters {
-    double lambda;
-    int lrc_threshold;
-  } _wls_params;
+  // struct WLSParameters {
+  //   double lambda;
+  //   int lrc_threshold;
+  // } _wls_params;
 
   // No default constructor
   VXBidirectionalStereoMatcher() = delete;

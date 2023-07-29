@@ -37,11 +37,11 @@ namespace gpu_stereo_image_proc_visionworks {
 
 struct VXStereoMatcherParams {
  public:
-  enum DisparityFiltering_t {
-    Filtering_None = 0,
-    Filtering_Bilateral = 1,
-    Filtering_WLS_LeftOnly = 2,
-    Filtering_WLS_LeftRight = 3
+  enum class DisparityFiltering : int {
+    None = 0,
+    Bilateral = 1,
+    WLS_LeftOnly = 2,
+    WLS_LeftRight = 3
   };
 
   VXStereoMatcherParams()
@@ -57,7 +57,7 @@ struct VXStereoMatcherParams {
         uniqueness_ratio(50),
         scanline_mask(NVX_SCANLINE_CROSS),
         flags(NVX_SGM_PYRAMIDAL_STEREO),
-        filtering(Filtering_None),
+        filtering(DisparityFiltering::None),
         do_disparity_padding(true) {}
 
   void set_image_size(const cv::Size sz, int img_type) {
@@ -89,7 +89,7 @@ struct VXStereoMatcherParams {
 
   bool do_disparity_padding;
 
-  DisparityFiltering_t filtering;
+  DisparityFiltering filtering;
 
   struct BilateralFilterParams {
     BilateralFilterParams()
@@ -110,10 +110,18 @@ struct VXStereoMatcherParams {
   } bilateral_filter_params;
 
   struct WLSFilterParams {
-    WLSFilterParams() : lambda(0), lrc_threshold(24) { ; }
+    WLSFilterParams()
+        : lambda(8000),
+          sigma_color(1.1),
+          lrc_threshold(24),
+          discontinuity_radius(3) {
+      ;
+    }
 
-    double lambda;
+    double lambda, sigma_color;
     int lrc_threshold;
+    int discontinuity_radius;
+
   } wls_filter_params;
 
   void dump() const {
@@ -134,6 +142,25 @@ struct VXStereoMatcherParams {
     ROS_INFO("            Flags : %02X", flags);
     ROS_INFO("        Filtering : %s", disparity_filter_as_string());
     ROS_INFO("     Edge padding : %s", (do_disparity_padding ? "YES" : "NO"));
+
+    if (filtering == DisparityFiltering::WLS_LeftRight) {
+      ROS_INFO_STREAM("WLS        Lambda : " << wls_filter_params.lambda);
+      ROS_INFO_STREAM("WLS    SigmaColor : " << wls_filter_params.sigma_color);
+      ROS_INFO_STREAM(
+          "WLS LRC Threshold : " << wls_filter_params.lrc_threshold);
+      ROS_INFO_STREAM(
+          "WLS Discont. Radius : " << wls_filter_params.discontinuity_radius);
+    } else if (filtering == DisparityFiltering::Bilateral) {
+      ROS_INFO_STREAM(
+          "Bilat       Sigma : " << bilateral_filter_params.sigma_range);
+      ROS_INFO_STREAM("Bilat      Radius : " << bilateral_filter_params.radius);
+      ROS_INFO_STREAM(
+          "Bilat   Num iters : " << bilateral_filter_params.num_iters);
+      ROS_INFO_STREAM("Bilat Max disc thr : "
+                      << bilateral_filter_params.max_disc_threshold);
+      ROS_INFO_STREAM(
+          "Bilat    Edge thr : " << bilateral_filter_params.edge_threshold);
+    }
     ROS_INFO("===================================");
   }
 
@@ -144,13 +171,13 @@ struct VXStereoMatcherParams {
   }
 
   const char *disparity_filter_as_string() const {
-    if (filtering == Filtering_None) {
+    if (filtering == DisparityFiltering::None) {
       return "None";
-    } else if (filtering == Filtering_Bilateral) {
+    } else if (filtering == DisparityFiltering::Bilateral) {
       return "Bilateral";
-    } else if (filtering == Filtering_WLS_LeftOnly) {
+    } else if (filtering == DisparityFiltering::WLS_LeftOnly) {
       return "WLS Left-only";
-    } else if (filtering == Filtering_WLS_LeftRight) {
+    } else if (filtering == DisparityFiltering::WLS_LeftRight) {
       return "WLS Left-Right";
     }
 

@@ -41,6 +41,7 @@
 #include <opencv2/cudastereo.hpp>
 #include <opencv2/cudawarping.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/ximgproc/disparity_filter.hpp>
 
 #include "gpu_stereo_image_proc/visionworks/vx_conversions.h"
 
@@ -117,7 +118,8 @@ void VXStereoMatcher::compute(cv::InputArray left, cv::InputArray right) {
   const auto status = vxProcessGraph(graph_);
   ROS_ASSERT(status == VX_SUCCESS);
 
-  if (params_.filtering == VXStereoMatcherParams::Filtering_Bilateral) {
+  if (params_.filtering ==
+      VXStereoMatcherParams::DisparityFiltering::Bilateral) {
     const int nDisp = (params_.max_disparity - params_.min_disparity);
     const int radius = 3;
     const int iters = 1;
@@ -132,6 +134,36 @@ void VXStereoMatcher::compute(cv::InputArray left, cv::InputArray right) {
 
     pCudaBilFilter->apply(disparity_map.getGpuMat(), left_map.getGpuMat(),
                           g_filtered_);
+  } else if (params_.filtering ==
+             VXStereoMatcherParams::DisparityFiltering::WLS_LeftOnly) {
+    cv::Ptr<cv::StereoSGBM> sgbm = cv::StereoSGBM::create(
+        params_.min_disparity, (params_.max_disparity - params_.min_disparity),
+        params_.sad_win_size);
+
+    // Repetitive with the bidirectional matcher...
+    cv ::Ptr<cv::ximgproc::DisparityWLSFilter> wls =
+        cv::ximgproc::createDisparityWLSFilter(sgbm);
+    wls->setLambda(params_.wls_filter_params.lambda);
+    wls->setLRCthresh(params_.wls_filter_params.lrc_threshold);
+    wls->setDepthDiscontinuityRadius(
+        params_.wls_filter_params.discontinuity_radius);
+    wls->setSigmaColor(params_.wls_filter_params.sigma_color);
+
+    const int border = params_.sad_win_size;
+
+    nvx_cv::VXImageToCVMatMapper left_map(left_scaled_, 0, NULL, VX_READ_ONLY,
+                                          VX_MEMORY_TYPE_HOST);
+    nvx_cv::VXImageToCVMatMapper lr_disparity_map(
+        disparity_, 0, NULL, VX_READ_ONLY, VX_MEMORY_TYPE_HOST);
+
+    const cv::Rect roi(border, 0, left_map.getMat().cols - 2 * border,
+                       left_map.getMat().rows);
+
+    cv::Mat filter_output_;
+    wls->filter(lr_disparity_map.getMat(), left_map.getMat(), filter_output_,
+                cv::Mat(), roi);
+
+    // n.b. This actually isn't connected to output yet.
   }
 }
 
