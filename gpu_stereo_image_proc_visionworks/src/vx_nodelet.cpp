@@ -83,18 +83,18 @@ class VXDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
   boost::shared_ptr<ReconfigureServer> reconfigure_server_;
 
-  ros::NodeHandle bilateral_nh_, wls_nh_;
-  typedef gpu_stereo_image_proc::DisparityBilateralFilterConfig
-      BilateralFilterConfig;
-  typedef dynamic_reconfigure::Server<BilateralFilterConfig>
-      BilateralReconfigureServer;
-  boost::shared_ptr<dynamic_reconfigure::Server<BilateralFilterConfig>>
-      dyncfg_bilateral_filter_;
+  // ros::NodeHandle bilateral_nh_, wls_nh_;
+  // typedef gpu_stereo_image_proc::DisparityBilateralFilterConfig
+  //     BilateralFilterConfig;
+  // typedef dynamic_reconfigure::Server<BilateralFilterConfig>
+  //     BilateralReconfigureServer;
+  // boost::shared_ptr<dynamic_reconfigure::Server<BilateralFilterConfig>>
+  //     dyncfg_bilateral_filter_;
 
-  typedef gpu_stereo_image_proc::DisparityWLSFilterConfig WLSFilterConfig;
-  typedef dynamic_reconfigure::Server<WLSFilterConfig> WLSReconfigureServer;
-  boost::shared_ptr<dynamic_reconfigure::Server<WLSFilterConfig>>
-      dyncfg_wls_filter_;
+  // typedef gpu_stereo_image_proc::DisparityWLSFilterConfig WLSFilterConfig;
+  // typedef dynamic_reconfigure::Server<WLSFilterConfig> WLSReconfigureServer;
+  // boost::shared_ptr<dynamic_reconfigure::Server<WLSFilterConfig>>
+  //     dyncfg_wls_filter_;
 
   std::unique_ptr<code_timing::CodeTiming> code_timing_;
 
@@ -120,8 +120,8 @@ class VXDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
                      const CameraInfoConstPtr &r_info_msg) override;
 
   void configCb(Config &config, uint32_t level);
-  void bilateralConfigCb(BilateralFilterConfig &config, uint32_t level);
-  void wlsConfigCb(WLSFilterConfig &config, uint32_t level);
+  // void bilateralConfigCb(BilateralFilterConfig &config, uint32_t level);
+  // void wlsConfigCb(WLSFilterConfig &config, uint32_t level);
 
   bool update_stereo_matcher();
 
@@ -141,15 +141,15 @@ void VXDisparityNodelet::onInit() {
   reconfigure_server_.reset(new ReconfigureServer(private_nh));
   reconfigure_server_->setCallback(f);
 
-  bilateral_nh_ = ros::NodeHandle(nh, "~bilateral_filter");
-  dyncfg_bilateral_filter_.reset(new BilateralReconfigureServer(bilateral_nh_));
-  dyncfg_bilateral_filter_->setCallback(
-      boost::bind(&VXDisparityNodelet::bilateralConfigCb, this, _1, _2));
+  // bilateral_nh_ = ros::NodeHandle(nh, "~bilateral_filter");
+  // dyncfg_bilateral_filter_.reset(new BilateralReconfigureServer(bilateral_nh_));
+  // dyncfg_bilateral_filter_->setCallback(
+  //     boost::bind(&VXDisparityNodelet::bilateralConfigCb, this, _1, _2));
 
-  wls_nh_ = ros::NodeHandle(nh, "~wls_filter");
-  dyncfg_wls_filter_.reset(new WLSReconfigureServer(wls_nh_));
-  dyncfg_wls_filter_->setCallback(
-      boost::bind(&VXDisparityNodelet::wlsConfigCb, this, _1, _2));
+  // wls_nh_ = ros::NodeHandle(nh, "~wls_filter");
+  // dyncfg_wls_filter_.reset(new WLSReconfigureServer(wls_nh_));
+  // dyncfg_wls_filter_->setCallback(
+  //     boost::bind(&VXDisparityNodelet::wlsConfigCb, this, _1, _2));
 
   code_timing_.reset(new code_timing::CodeTiming(nh));
 
@@ -416,24 +416,24 @@ void VXDisparityNodelet::configCb(Config &config, uint32_t level) {
   update_stereo_matcher();
 }
 
-void VXDisparityNodelet::bilateralConfigCb(BilateralFilterConfig &config,
-                                           uint32_t level) {
-  params_.bilateral_filter_params.sigma_range = config.sigma_range;
-  params_.bilateral_filter_params.radius = config.radius;
-  params_.bilateral_filter_params.num_iters = config.num_iters;
-  params_.bilateral_filter_params.max_disc_threshold =
-      config.max_disc_threshold;
-  params_.bilateral_filter_params.edge_threshold = config.edge_threshold;
+// void VXDisparityNodelet::bilateralConfigCb(BilateralFilterConfig &config,
+//                                            uint32_t level) {
+//   params_.bilateral_filter_params.sigma_range = config.sigma_range;
+//   params_.bilateral_filter_params.radius = config.radius;
+//   params_.bilateral_filter_params.num_iters = config.num_iters;
+//   params_.bilateral_filter_params.max_disc_threshold =
+//       config.max_disc_threshold;
+//   params_.bilateral_filter_params.edge_threshold = config.edge_threshold;
 
-  update_stereo_matcher();
-}
+//   update_stereo_matcher();
+// }
 
-void VXDisparityNodelet::wlsConfigCb(WLSFilterConfig &config, uint32_t level) {
-  params_.wls_filter_params.lambda = config.lambda;
-  params_.wls_filter_params.lrc_threshold = config.lrc_threshold;
+// void VXDisparityNodelet::wlsConfigCb(WLSFilterConfig &config, uint32_t level) {
+//   params_.wls_filter_params.lambda = config.lambda;
+//   params_.wls_filter_params.lrc_threshold = config.lrc_threshold;
 
-  update_stereo_matcher();
-}
+//   update_stereo_matcher();
+// }
 
 bool VXDisparityNodelet::update_stereo_matcher() {
   // \todo For safety, should mutex this and imageCb
