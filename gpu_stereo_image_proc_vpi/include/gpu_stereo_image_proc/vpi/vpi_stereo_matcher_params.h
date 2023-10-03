@@ -45,8 +45,6 @@ struct VPIStereoMatcherParams {
   VPIStereoMatcherParams()
       : downsample_log2(0),
         max_disparity(64),
-        window_size(5),
-        quality(6),
         confidence_threshold(32767),
         filtering(Filtering_None) {}
 
@@ -66,8 +64,7 @@ struct VPIStereoMatcherParams {
   int downsample() const { return (1 << downsample_log2); }
 
   int downsample_log2;
-  int max_disparity, window_size;
-  int quality, confidence_threshold;
+  int max_disparity, confidence_threshold;
 
   float p1, p2, uniqueness;
 
@@ -78,9 +75,10 @@ struct VPIStereoMatcherParams {
     ROS_INFO("original img size : w %d, h %d", image_size().width,
              image_size().height);
     ROS_INFO("       Downsample : %d", downsample());
-    ROS_INFO("      Window size : %d", window_size);
-    ROS_INFO("          Quality : %d", quality);
     ROS_INFO(" Confidence threshold : %d", confidence_threshold);
+    ROS_INFO("               P1 : %f", p1);
+    ROS_INFO("               P2 : %f", p2);
+    ROS_INFO(" Uniqueness ratio : %f", uniqueness);
     ROS_INFO("        Filtering : %s", disparity_filter_as_string());
     ROS_INFO("===================================");
   }

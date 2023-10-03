@@ -79,24 +79,35 @@ VPIStereoMatcher::VPIStereoMatcher(const VPIStereoMatcherParams &params)
   VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
                                   input_format, 0, &right_scaled_));
 
-  confidence8_m_ = cv::Mat(scaled_sz, CV_8UC1);
+  confidence_m_ = cv::Mat(scaled_sz, CV_16UC1);
+  disparity_m_ = cv::Mat(scaled_sz, CV_16SC1);
 
   VPI_CHECK_STATUS(vpiImageCreateWrapperOpenCVMat(
-      confidence8_m_, VPI_IMAGE_FORMAT_U8, 0, &confidence8_));
+      confidence_m_, VPI_IMAGE_FORMAT_U16, 0, &confidence_));
 
-  // vpiImageCreateOpenCVMatWrapper(disparity_m_, VPI_IMAGE_FORMAT_U16, 0,
-  //                                &disparity_);
+  VPI_CHECK_STATUS(vpiImageCreateWrapperOpenCVMat(
+      disparity_m_, VPI_IMAGE_FORMAT_S16, 0, &disparity_));
 
-  VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
-                                  VPI_IMAGE_FORMAT_U16, 0, &disparity_));
+  int32_t stereo_width, stereo_height;
+  VPIImageFormat stereo_format;
+  VPI_CHECK_STATUS(vpiImageGetSize(disparity_, &stereo_width, &stereo_height));
+  VPI_CHECK_STATUS(vpiImageGetFormat(disparity_, &stereo_format));
+  ROS_INFO_STREAM_THROTTLE(1, "Disparity is "
+                                  << stereo_width << " x " << stereo_height
+                                  << " ; format "
+                                  << vpiImageFormatGetName(stereo_format));
 
-  VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
-                                  VPI_IMAGE_FORMAT_U16, 0, &confidence_));
+  //   VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
+  //                                   VPI_IMAGE_FORMAT_U16, 0, &disparity_));
+
+  //   VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
+  //                                   VPI_IMAGE_FORMAT_U16, 0, &confidence_));
 
   ROS_INFO_STREAM("Max disparity: " << params_.max_disparity);
+
   VPIStereoDisparityEstimatorCreationParams create_params;
+  vpiInitStereoDisparityEstimatorCreationParams(&create_params);
   create_params.maxDisparity = params_.max_disparity;
-  create_params.includeDiagonals = 1;
 
   VPI_CHECK_STATUS(vpiCreateStereoDisparityEstimator(
       VPI_BACKEND_CUDA, scaled_sz.width, scaled_sz.height, input_format,
@@ -153,11 +164,25 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
   // VPIStereoDisparityEstimatorCreationParams create_params;
   // create_params.maxDisparity = 64; //params.max_disparity;
 
-  // int32_t stereo_width, stereo_height;
-  // VPIImageFormat stereo_format;
-  // VPI_CHECK_STATUS(vpiImageGetSize( left_scaled_, &stereo_width,
-  // &stereo_height )); VPI_CHECK_STATUS(vpiImageGetFormat(left_scaled_,
-  // &stereo_format));
+  //   int32_t stereo_width, stereo_height;
+  //   VPIImageFormat stereo_format;
+  //   VPI_CHECK_STATUS(vpiImageGetSize( left_scaled_, &stereo_width,
+  //   &stereo_height )); VPI_CHECK_STATUS(vpiImageGetFormat(left_scaled_,
+  //   &stereo_format));
+  // ROS_INFO_STREAM_THROTTLE(1, "     Left is " << stereo_width << " x " <<
+  // stereo_height << " ; format " << vpiImageFormatGetName(stereo_format));
+
+  //   VPI_CHECK_STATUS(vpiImageGetSize( right_scaled_, &stereo_width,
+  //   &stereo_height )); VPI_CHECK_STATUS(vpiImageGetFormat(right_scaled_,
+  //   &stereo_format));
+  // ROS_INFO_STREAM_THROTTLE(1, "    Right is " << stereo_width << " x " <<
+  // stereo_height << " ; format " << vpiImageFormatGetName(stereo_format));
+
+  //   VPI_CHECK_STATUS(vpiImageGetSize( disparity_, &stereo_width,
+  //   &stereo_height )); VPI_CHECK_STATUS(vpiImageGetFormat(disparity_,
+  //   &stereo_format));
+  // ROS_INFO_STREAM_THROTTLE(1, "Disparity is " << stereo_width << " x " <<
+  // stereo_height << " ; format " << vpiImageFormatGetName(stereo_format));
 
   // VPIPayload stereo_payload;
   // VPI_CHECK_STATUS(vpiCreateStereoDisparityEstimator(
@@ -165,19 +190,18 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
   //     &create_params, &stereo_payload));
 
   VPIStereoDisparityEstimatorParams stereo_params;
-  stereo_params.windowSize =
-      5;  // n.b. this is ignored on CUDA which uses 9x7 kernel
-  stereo_params.maxDisparity = params_.max_disparity;
+  vpiInitStereoDisparityEstimatorParams(&stereo_params);
   stereo_params.confidenceType = VPI_STEREO_CONFIDENCE_ABSOLUTE;
   stereo_params.p1 = params_.p1;
   stereo_params.p2 = params_.p2;
   stereo_params.uniqueness = params_.uniqueness;
+  stereo_params.confidenceThreshold = params_.confidence_threshold;
 
   // In the current generation of VPI, confidence is not
   // calculated.  This is fixed in later versions.
   VPI_CHECK_STATUS(vpiSubmitStereoDisparityEstimator(
       stream_, 0, stereo_payload_, left_scaled_, right_scaled_, disparity_,
-      NULL, &stereo_params));
+      confidence_, &stereo_params));
 
   // Scale the confidence to 0-255
   // VPIConvertImageFormatParams cvtParams;
@@ -189,20 +213,20 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
 
   VPI_CHECK_STATUS(vpiStreamSync(stream_));
 
-  cv::Mat dispMat;
-  VPIImageData disparityData;
-  vpiImageLockData(disparity_, VPI_LOCK_READ,
-                   VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR, &disparityData);
-  vpiImageDataExportOpenCVMat(disparityData, &dispMat);
+  //   cv::Mat dispMat;
+  //   VPIImageData disparityData;
+  //   vpiImageLockData(disparity_, VPI_LOCK_READ,
+  //                    VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR, &disparityData);
+  //   vpiImageDataExportOpenCVMat(disparityData, &dispMat);
 
   double mmin, mmax;
-  cv::minMaxLoc(dispMat, &mmin, &mmax);
+  cv::minMaxLoc(disparity_m_, &mmin, &mmax);
   ROS_INFO_STREAM_THROTTLE(1, "Disparity min " << mmin << "; max = " << mmax);
 
   // ...
-  dispMat.copyTo(disparity_m_);
+  // dispMat.copyTo(disparity_m_);
 
-  vpiImageUnlock(disparity_);
+  // vpiImageUnlock(disparity_);
 
   vpiImageDestroy(left);
   vpiImageDestroy(right);

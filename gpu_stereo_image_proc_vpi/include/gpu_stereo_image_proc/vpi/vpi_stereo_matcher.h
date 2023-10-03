@@ -58,7 +58,7 @@ class VPIStereoMatcher {
   // }
 
   virtual cv::Mat disparity() const { return disparity_m_; }
-  virtual cv::Mat confidence() const { return confidence8_m_; }
+  virtual cv::Mat confidence() const { return confidence_m_; }
 
  protected:
   VPIPayload stereo_payload_;
@@ -66,11 +66,10 @@ class VPIStereoMatcher {
 
   // Scaled images (equal to {left|right}_image_ if not scaling)
   VPIImage left_blurred_, right_blurred_, left_scaled_, right_scaled_;
-  VPIImage confidence_;
 
   // Output images, these wrap Mats
-  cv::Mat confidence8_m_, disparity_m_;
-  VPIImage confidence8_, disparity_;
+  cv::Mat confidence_m_, disparity_m_;
+  VPIImage confidence_, disparity_;
 
   VPIStereoMatcherParams params_;
 

@@ -144,6 +144,8 @@ void VPIDisparityNodelet::onInit() {
   ros::NodeHandle &nh = getNodeHandle();
   ros::NodeHandle &private_nh = getPrivateNodeHandle();
 
+  code_timing_.reset(new code_timing::CodeTiming(nh, "VPIDisparityNodelet"));
+
   // Set up dynamic reconfiguration
   ReconfigureServer::CallbackType f =
       boost::bind(&VPIDisparityNodelet::configCb, this, _1, _2);
@@ -222,7 +224,7 @@ void VPIDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
   const int min_disparity = 0;
   const int max_disparity = stereo_matcher_->params().max_disparity;
   const int downsample = stereo_matcher_->params().downsample();
-  const int border = stereo_matcher_->params().window_size / 2;
+  //  const int border = stereo_matcher_->params().window_size / 2;
 
   const auto scaled_camera_info_l(scaleCameraInfo(l_info_msg, downsample));
   const auto scaled_camera_info_r(scaleCameraInfo(r_info_msg, downsample));
@@ -285,8 +287,7 @@ void VPIDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
   //                                      confidence);
   // pub_confidence_.publish(confidence_bridge.toImageMsg());
 
-  DisparityImageGenerator dg(scaled_model, min_disparity, max_disparity,
-                             border);
+  DisparityImageGenerator dg(scaled_model, min_disparity, max_disparity, 0);
 
   auto dgr(dg.generate(l_image_msg, disparityS16));
 
@@ -318,9 +319,9 @@ void VPIDisparityNodelet::configCb(Config &config, uint32_t level) {
   // Settings for the nodelet itself
   // confidence_threshold_ = config.confidence_threshold;
 
-  params_.window_size = config.correlation_window_size;
+  //  params_.window_size = config.correlation_window_size;
   params_.downsample_log2 = config.downsample;
-  params_.quality = config.quality;
+  //  params_.quality = config.quality;
   params_.confidence_threshold = config.confidence_threshold;
 
   params_.p1 = config.P1;
