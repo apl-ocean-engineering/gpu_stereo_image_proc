@@ -58,8 +58,6 @@
 #include "gpu_stereo_image_proc/nodelet_base.h"
 #include "gpu_stereo_image_proc/visionworks/vx_bidirectional_stereo_matcher.h"
 #include "gpu_stereo_image_proc/visionworks/vx_stereo_matcher.h"
-#include "gpu_stereo_image_proc_common/DisparityBilateralFilterConfig.h"
-#include "gpu_stereo_image_proc_common/DisparityWLSFilterConfig.h"
 #include "gpu_stereo_image_proc_visionworks/VXSGBMConfig.h"
 
 namespace gpu_stereo_image_proc_visionworks {
@@ -83,19 +81,6 @@ class VXDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
   boost::shared_ptr<ReconfigureServer> reconfigure_server_;
 
-  // ros::NodeHandle bilateral_nh_, wls_nh_;
-  // typedef gpu_stereo_image_proc::DisparityBilateralFilterConfig
-  //     BilateralFilterConfig;
-  // typedef dynamic_reconfigure::Server<BilateralFilterConfig>
-  //     BilateralReconfigureServer;
-  // boost::shared_ptr<dynamic_reconfigure::Server<BilateralFilterConfig>>
-  //     dyncfg_bilateral_filter_;
-
-  // typedef gpu_stereo_image_proc::DisparityWLSFilterConfig WLSFilterConfig;
-  // typedef dynamic_reconfigure::Server<WLSFilterConfig> WLSReconfigureServer;
-  // boost::shared_ptr<dynamic_reconfigure::Server<WLSFilterConfig>>
-  //     dyncfg_wls_filter_;
-
   std::unique_ptr<code_timing::CodeTiming> code_timing_;
 
   VXStereoMatcherParams params_;
@@ -103,6 +88,8 @@ class VXDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   bool debug_topics_;
 
   unsigned int confidence_threshold_;
+
+  std::mutex matcher_mutex_;
 
   void onInit() override;
 
@@ -124,6 +111,10 @@ class VXDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   // void wlsConfigCb(WLSFilterConfig &config, uint32_t level);
 
   bool update_stereo_matcher();
+  bool reset_stereo_matcher() {
+    std::lock_guard<std::mutex> lock_guard(matcher_mutex_);
+    stereo_matcher_ = nullptr;
+  }
 
  public:
   VXDisparityNodelet() : confidence_threshold_(0) { ; }
@@ -141,8 +132,10 @@ void VXDisparityNodelet::onInit() {
   reconfigure_server_.reset(new ReconfigureServer(private_nh));
   reconfigure_server_->setCallback(f);
 
+  // These ... don't work
   // bilateral_nh_ = ros::NodeHandle(nh, "~bilateral_filter");
-  // dyncfg_bilateral_filter_.reset(new BilateralReconfigureServer(bilateral_nh_));
+  // dyncfg_bilateral_filter_.reset(new
+  // BilateralReconfigureServer(bilateral_nh_));
   // dyncfg_bilateral_filter_->setCallback(
   //     boost::bind(&VXDisparityNodelet::bilateralConfigCb, this, _1, _2));
 
@@ -198,11 +191,6 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
                                        const CameraInfoConstPtr &l_info_msg,
                                        const ImageConstPtr &r_image_msg,
                                        const CameraInfoConstPtr &r_info_msg) {
-  // Create cv::Mat views in the two input buffers
-  //  const cv::Mat l_image(cv_bridge::toCvShare(l_image_msg,
-  //  l_image_msg->encoding)->image); const cv::Mat
-  //  r_image(cv_bridge::toCvShare(r_image_msg, l_image_msg->encoding)->image);
-
   // Cast images to MONO8, Visionworks' SGM can only handle 8-bit
   const cv::Mat_<uint8_t> l_image =
       cv_bridge::toCvShare(l_image_msg, sensor_msgs::image_encodings::MONO8)
@@ -217,6 +205,7 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
 
   params_.set_image_size(cv::Size(l_image.cols, l_image.rows), l_image.type());
   if (stereo_matcher_) {
+    // Check for change of image type or size
     if ((stereo_matcher_->params().image_size() != params_.image_size()) ||
         (stereo_matcher_->params().image_type() != params_.image_type())) {
       update_stereo_matcher();
@@ -246,16 +235,9 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
     const auto roi =
         cv::Rect(padding, 0, _dispS16.cols - 2 * padding, _dispS16.rows);
     disparityS16 = cv::Mat(_dispS16, roi);
-
-    // NODELET_INFO_STREAM("ROI is (" << roi.x << "," << roi.y << ") to ("
-    //                                << roi.x + roi.width << ","
-    //                                << roi.y + roi.height << ")");
   } else {
     disparityS16 = _dispS16;
-
     const auto sz = disparityS16.size();
-    // NODELET_INFO_STREAM("Disparity is (" << sz.width << " x " << sz.height
-    //                                      << ")");
   }
 
   DisparityImageGenerator dg(scaled_model_,
@@ -288,7 +270,7 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
                                          confidence);
     pub_confidence_.publish(confidence_bridge.toImageMsg());
 
-    if (confidence_threshold_ > 0) {
+    if (confidence_threshold_ > 0 && !confidence.empty()) {
       // Since we use the mask to **discard** disparities with low confidence,
       // use CMP_LT to **set** pixels in the mask which have a confidence
       // below the threshold.
@@ -349,7 +331,7 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
 }
 
 void VXDisparityNodelet::configCb(Config &config, uint32_t level) {
-  // Settings for the nodelet itself
+  // Settings for this nodelet itself
   confidence_threshold_ = config.confidence_threshold;
 
   // Tweak all settings to be valid
@@ -413,30 +395,25 @@ void VXDisparityNodelet::configCb(Config &config, uint32_t level) {
   params_.downsample_log2 = config.downsample;
   params_.do_disparity_padding = config.do_disparity_padding;
 
-  update_stereo_matcher();
+  // Disparity filter parameters
+  params_.bilateral_filter_params.sigma_range =
+      config.bilateral_params.sigma_range;
+  params_.bilateral_filter_params.radius = config.bilateral_params.radius;
+  params_.bilateral_filter_params.num_iters = config.bilateral_params.num_iters;
+  params_.bilateral_filter_params.max_disc_threshold =
+      config.bilateral_params.max_disc_threshold;
+  params_.bilateral_filter_params.edge_threshold =
+      config.bilateral_params.edge_threshold;
+
+  // WLS filter parameters
+  params_.wls_filter_params.lambda = config.wls_params.lambda;
+  params_.wls_filter_params.lrc_threshold = config.wls_params.lrc_threshold;
+
+  reset_stereo_matcher();
 }
 
-// void VXDisparityNodelet::bilateralConfigCb(BilateralFilterConfig &config,
-//                                            uint32_t level) {
-//   params_.bilateral_filter_params.sigma_range = config.sigma_range;
-//   params_.bilateral_filter_params.radius = config.radius;
-//   params_.bilateral_filter_params.num_iters = config.num_iters;
-//   params_.bilateral_filter_params.max_disc_threshold =
-//       config.max_disc_threshold;
-//   params_.bilateral_filter_params.edge_threshold = config.edge_threshold;
-
-//   update_stereo_matcher();
-// }
-
-// void VXDisparityNodelet::wlsConfigCb(WLSFilterConfig &config, uint32_t level) {
-//   params_.wls_filter_params.lambda = config.lambda;
-//   params_.wls_filter_params.lrc_threshold = config.lrc_threshold;
-
-//   update_stereo_matcher();
-// }
-
 bool VXDisparityNodelet::update_stereo_matcher() {
-  // \todo For safety, should mutex this and imageCb
+  std::lock_guard<std::mutex> lock_guard(matcher_mutex_);
   ROS_WARN("Updating stereo_matcher");
 
   if (!params_.valid()) {
@@ -450,7 +427,17 @@ bool VXDisparityNodelet::update_stereo_matcher() {
       VXStereoMatcherParams::DisparityFiltering::WLS_LeftRight) {
     ROS_INFO("Creating VXBidirectionalStereoMatcher");
     stereo_matcher_.reset(new VXBidirectionalStereoMatcher(params_));
+  } else if (params_.filtering ==
+             VXStereoMatcherParams::DisparityFiltering::WLS_LeftOnly) {
+    ROS_INFO("Creating VXStereoMatcherWLSLeftFilter");
+    stereo_matcher_.reset(new VXStereoMatcherWLSLeftFilter(params_));
+
+  } else if (params_.filtering ==
+             VXStereoMatcherParams::DisparityFiltering::Bilateral) {
+    ROS_INFO("Creating VXStereoMatcherBilateralFilter");
+    stereo_matcher_.reset(new VXStereoMatcherBilateralFilter(params_));
   } else {
+    ROS_INFO("Creating VXStereoMatcher");
     stereo_matcher_.reset(new VXStereoMatcher(params_));
   }
   return true;

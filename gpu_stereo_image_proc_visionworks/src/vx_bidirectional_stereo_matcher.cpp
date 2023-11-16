@@ -101,65 +101,55 @@ void VXBidirectionalStereoMatcher::compute(cv::InputArray left,
   const auto status = vxProcessGraph(graph_);
   ROS_ASSERT(status == VX_SUCCESS);
 
-  if (params_.filtering ==
-      VXStereoMatcherParams::DisparityFiltering::WLS_LeftRight) {
-    cv::Mat rl_disparity;
+  cv::Mat rl_disparity;
 
-    nvx_cv::VXImageToCVMatMapper lr_disparity_map(
-        disparity_, 0, NULL, VX_READ_ONLY, VX_MEMORY_TYPE_HOST);
+  nvx_cv::VXImageToCVMatMapper lr_disparity_map(
+      disparity_, 0, NULL, VX_READ_ONLY, VX_MEMORY_TYPE_HOST);
 
-    nvx_cv::VXImageToCVMatMapper right_map(right_scaled_, 0, NULL, VX_READ_ONLY,
-                                           VX_MEMORY_TYPE_HOST);
-    nvx_cv::VXImageToCVMatMapper left_map(left_scaled_, 0, NULL, VX_READ_ONLY,
-                                          VX_MEMORY_TYPE_HOST);
+  nvx_cv::VXImageToCVMatMapper right_map(right_scaled_, 0, NULL, VX_READ_ONLY,
+                                         VX_MEMORY_TYPE_HOST);
+  nvx_cv::VXImageToCVMatMapper left_map(left_scaled_, 0, NULL, VX_READ_ONLY,
+                                        VX_MEMORY_TYPE_HOST);
 
-    nvx_cv::VXImageToCVMatMapper flipped_rl_disparity_map(
-        flipped_rl_disparity_, 0, NULL, VX_READ_ONLY, VX_MEMORY_TYPE_HOST);
+  nvx_cv::VXImageToCVMatMapper flipped_rl_disparity_map(
+      flipped_rl_disparity_, 0, NULL, VX_READ_ONLY, VX_MEMORY_TYPE_HOST);
 
-    // Flip and negate RL disparities
-    cv::flip(flipped_rl_disparity_map.getMat(), rl_disparity, 1);
-    rl_disparity *= -1;
+  // Flip and negate RL disparities
+  cv::flip(flipped_rl_disparity_map.getMat(), rl_disparity, 1);
+  rl_disparity *= -1;
 
-    // Since we don't use an OpenCV matcher, we need to create a fake
-    // matcher to initialize the WLS filter
-    //
-    // These are the only params used to initialize the WLS filter...
-    //
-    // \todo These probably only need to be created once in the constructor (?)
-    cv::Ptr<cv::StereoSGBM> sgbm = cv::StereoSGBM::create(
-        params_.min_disparity, (params_.max_disparity - params_.min_disparity),
-        params_.sad_win_size);
+  // Since we don't use an OpenCV matcher, we need to create a fake
+  // matcher to initialize the WLS filter
+  //
+  // These are the only params used to initialize the WLS filter...
+  //
+  // \todo These probably only need to be created once in the constructor (?)
+  // cv::Ptr<cv::StereoSGBM> sgbm = cv::StereoSGBM::create(
+  //     params_.min_disparity, (params_.max_disparity - params_.min_disparity),
+  //     params_.sad_win_size);
 
-    cv ::Ptr<cv::ximgproc::DisparityWLSFilter> wls =
-        cv::ximgproc::createDisparityWLSFilter(sgbm);
-    wls->setLambda(params_.wls_filter_params.lambda);
-    wls->setLRCthresh(params_.wls_filter_params.lrc_threshold);
-    wls->setDepthDiscontinuityRadius(
-        params_.wls_filter_params.discontinuity_radius);
-    wls->setSigmaColor(params_.wls_filter_params.sigma_color);
+  // cv ::Ptr<cv::ximgproc::DisparityWLSFilter> wls =
+  //     cv::ximgproc::createDisparityWLSFilter(sgbm);
 
-    const int border = params_.sad_win_size;
-    const cv::Rect roi(border, 0, left_map.getMat().cols - 2 * border,
-                       left_map.getMat().rows);
+  // "true" == compute confidence
+  cv ::Ptr<cv::ximgproc::DisparityWLSFilter> wls =
+      cv::ximgproc::createDisparityWLSFilterGeneric(true);
 
-    wls->filter(lr_disparity_map.getMat(), left_map.getMat(), filter_output_,
-                rl_disparity, roi, right_map.getMat());
+  wls->setLambda(params_.wls_filter_params.lambda);
+  wls->setLRCthresh(params_.wls_filter_params.lrc_threshold);
+  wls->setDepthDiscontinuityRadius(
+      params_.wls_filter_params.discontinuity_radius);
+  wls->setSigmaColor(params_.wls_filter_params.sigma_color);
 
-    // filter_output_ is the Mat returned by disparity()
-    confidence_ = wls->getConfidenceMap();
-  } else {
-    ROS_WARN(
-        "In VXBidirectionalStereoMatcher but not doing WLSFiltering;  "
-        "this shouldn't happen.");
+  const int border = params_.sad_win_size;
+  const cv::Rect roi(border, 0, left_map.getMat().cols - 2 * border,
+                     left_map.getMat().rows);
 
-    // Do the inefficient thing and copy it to filter_output_ to simplify the
-    // disparity() function.
-    //
-    // We should never be here regardless
-    nvx_cv::VXImageToCVMatMapper map(disparity_, 0, NULL, VX_READ_ONLY,
-                                     VX_MEMORY_TYPE_HOST);
-    map.getMat().copyTo(filter_output_);
-  }
+  wls->filter(lr_disparity_map.getMat(), left_map.getMat(), filter_output_,
+              rl_disparity, roi, right_map.getMat());
+
+  // filter_output_ is the Mat returned by disparity()
+  confidence_ = wls->getConfidenceMap();
 }
 
 }  // namespace gpu_stereo_image_proc_visionworks

@@ -90,15 +90,6 @@ class VPIDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
   boost::shared_ptr<ReconfigureServer> reconfigure_server_;
 
-  // typedef gpu_stereo_image_proc::DisparityBilateralFilterConfig
-  //     BilateralFilterConfig;
-  // boost::shared_ptr<dynamic_reconfigure::Server<BilateralFilterConfig>>
-  //     dyncfg_bilateral_filter_;
-
-  // typedef gpu_stereo_image_proc::DisparityWLSFilterConfig WLSFilterConfig;
-  // boost::shared_ptr<dynamic_reconfigure::Server<WLSFilterConfig>>
-  //     dyncfg_wls_filter_;
-
   std::unique_ptr<code_timing::CodeTiming> code_timing_;
 
   // Processing state (note: only safe because we're single-threaded!)
@@ -330,13 +321,24 @@ void VPIDisparityNodelet::configCb(Config &config, uint32_t level) {
 #else
   if (config.max_disparity > 64) {
     ROS_WARN(
-        "!!! Max disparity for this version of VPI is 64.   Capping disparity "
+        "!!! Max disparity for this version of VPI is 64.   Limiting disparity "
         "to 64");
     params_.max_disparity = 64;
   } else {
     params_.max_disparity = config.max_disparity;
   }
 #endif
+
+  // // Disparity filter parameters
+  // params_.disp_filter.sigma_range = config.sigma_range;
+  // params_.disp_filter.radius = config.radius;
+  // params_.disp_filter.num_iters = config.num_iters;
+  // params_.disp_filter.max_disc_threshold = config.max_disc_threshold;
+  // params_.disp_filter.edge_threshold = config.edge_threshold;
+
+  // // WLS filter parameters
+  // params_.wls_filter.lambda = config.lambda;
+  // params_.wls_filter.lrc_threshold = config.lrc_threshold;
 
   update_stereo_matcher();
 }

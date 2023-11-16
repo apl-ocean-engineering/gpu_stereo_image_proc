@@ -114,7 +114,7 @@ struct VXStereoMatcherParams {
         : lambda(8000),
           sigma_color(1.1),
           lrc_threshold(24),
-          discontinuity_radius(3) {
+          discontinuity_radius(2) {
       ;
     }
 
