@@ -63,8 +63,6 @@ using namespace std::chrono;
 // "gpu_stereo_image_proc/visionworks/vx_bidirectional_stereo_matcher.h"
 #include "gpu_stereo_image_proc/nodelet_base.h"
 #include "gpu_stereo_image_proc/vpi/vpi_stereo_matcher.h"
-#include "gpu_stereo_image_proc_common/DisparityBilateralFilterConfig.h"
-#include "gpu_stereo_image_proc_common/DisparityWLSFilterConfig.h"
 #include "gpu_stereo_image_proc_vpi/VPI_SGBMConfig.h"
 
 namespace gpu_stereo_image_proc_vpi {

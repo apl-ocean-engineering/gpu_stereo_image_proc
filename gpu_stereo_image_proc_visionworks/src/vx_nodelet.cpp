@@ -397,17 +397,20 @@ void VXDisparityNodelet::configCb(Config &config, uint32_t level) {
 
   // Disparity filter parameters
   params_.bilateral_filter_params.sigma_range =
-      config.bilateral_params.sigma_range;
-  params_.bilateral_filter_params.radius = config.bilateral_params.radius;
-  params_.bilateral_filter_params.num_iters = config.bilateral_params.num_iters;
+      config.groups.bilateral_params.sigma_range;
+  params_.bilateral_filter_params.radius =
+      config.groups.bilateral_params.radius;
+  params_.bilateral_filter_params.num_iters =
+      config.groups.bilateral_params.num_iters;
   params_.bilateral_filter_params.max_disc_threshold =
-      config.bilateral_params.max_disc_threshold;
+      config.groups.bilateral_params.max_disc_threshold;
   params_.bilateral_filter_params.edge_threshold =
-      config.bilateral_params.edge_threshold;
+      config.groups.bilateral_params.edge_threshold;
 
   // WLS filter parameters
-  params_.wls_filter_params.lambda = config.wls_params.lambda;
-  params_.wls_filter_params.lrc_threshold = config.wls_params.lrc_threshold;
+  params_.wls_filter_params.lambda = config.groups.wls_params.lambda;
+  params_.wls_filter_params.lrc_threshold =
+      config.groups.wls_params.lrc_threshold;
 
   reset_stereo_matcher();
 }
