@@ -359,6 +359,12 @@ bool VPIDisparityNodelet::update_stereo_matcher() {
   //   ROS_INFO("Creating VXBidirectionalStereoMatcher");
   //   stereo_matcher_.reset(new VXBidirectionalStereoMatcher(params_));
   // } else {
+
+  // Explicitly destroy the previous version first to release
+  // its CUDA resources
+  stereo_matcher_.reset();
+
+  // Then create the new instance
   stereo_matcher_.reset(new VPIStereoMatcher(params_));
   //}
   return true;
