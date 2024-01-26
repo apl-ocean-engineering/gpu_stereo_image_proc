@@ -140,7 +140,7 @@ void VPIDisparityNodelet::onInit() {
   DisparityNodeletBase::onInit();
 
   // Use the single-threaded model.   There are really only two callbacks:
-  // dynamic reconfigure and new images.  We would never want them to run 
+  // dynamic reconfigure and new images.  We would never want them to run
   // simultaneously.
   ros::NodeHandle &nh = getNodeHandle();
   ros::NodeHandle &private_nh = getPrivateNodeHandle();
@@ -356,6 +356,11 @@ bool VPIDisparityNodelet::update_stereo_matcher() {
 
   params_.dump();
   ROS_WARN("Creating new stereo_matcher");
+  // Explicitly destroy the previous version first to release
+  // its CUDA resources
+  stereo_matcher_.reset();
+
+  // Then create the new instance
   stereo_matcher_.reset(new VPIStereoMatcher(params_));
   return true;
 }
