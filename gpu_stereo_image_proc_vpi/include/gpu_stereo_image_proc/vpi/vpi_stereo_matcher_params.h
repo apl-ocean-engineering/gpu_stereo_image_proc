@@ -45,6 +45,7 @@ struct VPIStereoMatcherParams {
   VPIStereoMatcherParams()
       : downsample_log2(0),
         max_disparity(64),
+        min_disparity(0),
         confidence_threshold(32767),
         filtering(Filtering_None) {}
 
@@ -64,7 +65,7 @@ struct VPIStereoMatcherParams {
   int downsample() const { return (1 << downsample_log2); }
 
   int downsample_log2;
-  int max_disparity, confidence_threshold;
+  int max_disparity, min_disparity, confidence_threshold;
 
   float p1, p2, uniqueness;
 

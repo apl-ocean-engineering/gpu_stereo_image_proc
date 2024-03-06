@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.1)
 project(gpu_stereo_image_proc_visionworks)
 
+find_package(VisionWorks)
+include_directories(${VisionWorks_INCLUDE_DIRS})
+
+if( VisionWorks_FOUND )
+
 find_package(catkin REQUIRED cv_bridge dynamic_reconfigure image_geometry
                 image_proc image_transport message_filters nodelet
                 sensor_msgs stereo_msgs
@@ -30,8 +35,6 @@ include_directories(include)
 
 find_package(OpenCV 4 REQUIRED)
 include_directories(${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
-find_package(VisionWorks REQUIRED)
-include_directories(${VisionWorks_INCLUDE_DIRS})
 
 find_package(CUDA REQUIRED)
 set(CUDA_ARCH "-arch=sm_72" CACHE STRING "Value of the NVCC -arch option.")
@@ -87,3 +90,9 @@ install(DIRECTORY launch
 install(DIRECTORY include/${PROJECT_NAME}/
         DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
 )
+
+else()
+
+message("Unable to find Visionworks, not building this package...")
+
+endif()
