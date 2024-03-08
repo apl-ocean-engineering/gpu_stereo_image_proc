@@ -105,11 +105,11 @@ VPIStereoMatcher::VPIStereoMatcher(const VPIStereoMatcherParams &params)
                                     << vpiImageFormatGetName(stereo_format));
   }
 
-  //   VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
-  //                                   VPI_IMAGE_FORMAT_U16, 0, &disparity_));
+  VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
+                                  VPI_IMAGE_FORMAT_S16, 0, &disparity_));
 
-  //   VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
-  //                                   VPI_IMAGE_FORMAT_U16, 0, &confidence_));
+  VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
+                                  VPI_IMAGE_FORMAT_U16, 0, &confidence_));
 
   ROS_INFO_STREAM("Max disparity: " << params_.max_disparity);
 
@@ -259,7 +259,7 @@ cv::Mat VPIStereoMatcher::confidence() {
   cv::Mat confidence_export, confidence_out;
   VPIImageData confidence_data;
   VPI_CHECK_STATUS(vpiImageLockData(confidence_, VPI_LOCK_READ,
-                                    VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR,
+                                    VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR,
                                     &confidence_data));
   VPI_CHECK_STATUS(
       vpiImageDataExportOpenCVMat(confidence_data, &confidence_export));
@@ -271,11 +271,12 @@ cv::Mat VPIStereoMatcher::confidence() {
 }
 
 cv::Mat VPIStereoMatcher::disparity() {
-  cv::Mat disp_export, disp_out;
   VPIImageData disp_data;
   VPI_CHECK_STATUS(vpiImageLockData(disparity_output_, VPI_LOCK_READ,
-                                    VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR,
+                                    VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR,
                                     &disp_data));
+
+  cv::Mat disp_export, disp_out;
   VPI_CHECK_STATUS(vpiImageDataExportOpenCVMat(disp_data, &disp_export));
 
   //   double mmin, mmax;
@@ -284,7 +285,7 @@ cv::Mat VPIStereoMatcher::disparity() {
   //   mmax);
 
   disp_export.copyTo(disp_out);
-  vpiImageUnlock(disparity_);
+  vpiImageUnlock(disparity_output_);
 
   return disp_out;
 }
