@@ -44,20 +44,21 @@ namespace gpu_stereo_image_proc_visionworks {
 
 class VxImageScaler {
  public:
-  VxImageScaler(unsigned int downsample_log2);
+  VxImageScaler(unsigned int downsample_log2, unsigned int disparity_padding);
 
   virtual vx_image addToGraph(vx_context context, vx_graph graph,
                               vx_image input) = 0;
 
-  int downsample() const { return 2 ^ downsample_log2_; }
+  // int downsample() const { return 2 ^ downsample_log2_; }
 
   // Note outputSize() is not set until addToGraph is called
-  const cv::Size outputSize() const { return output_size_; }
-
-  unsigned int downsample_log2_;
+  // const cv::Size outputSize() const { return output_size_; }
 
  protected:
-  cv::Size output_size_;
+  // cv::Size output_size_;
+  // vx_image output_image_;
+
+  unsigned int downsample_log2_, disparity_padding_;
 
   // No default constructor
   VxImageScaler() = delete;
@@ -68,7 +69,8 @@ class VxImageScaler {
 
 class VxGaussianImageScaler : public VxImageScaler {
  public:
-  VxGaussianImageScaler(unsigned int downsample_log2);
+  VxGaussianImageScaler(unsigned int downsample_log2,
+                        unsigned int disparity_padding);
 
   vx_image addToGraph(vx_context context, vx_graph graph,
                       vx_image input) override;
@@ -77,6 +79,9 @@ class VxGaussianImageScaler : public VxImageScaler {
   // This class downsamples using a Visionworks call which halves image size,
   // so we maintain a pyramid of intermediate images
   std::vector<vx_image> images_;
+
+  void addImage(const size_t idx, vx_context context, const cv::Size &sz,
+                vx_df_image format);
 
   // No default constructor
   VxGaussianImageScaler() = delete;

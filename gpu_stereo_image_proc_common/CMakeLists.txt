@@ -15,10 +15,7 @@ if(cv_bridge_VERSION VERSION_GREATER "1.12.0")
 endif()
 
 # Dynamic reconfigure support
-generate_dynamic_reconfigure_options(
-  cfg/DisparityBilateralFilter.cfg
-  cfg/DisparityWLSFilter.cfg
-  )
+# generate_dynamic_reconfigure_options()
 
 catkin_package(
   CATKIN_DEPENDS image_geometry image_proc sensor_msgs stereo_msgs

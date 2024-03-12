@@ -35,11 +35,11 @@ namespace gpu_stereo_image_proc_vpi {
 
 struct VPIStereoMatcherParams {
  public:
-  enum DisparityFiltering_t {
+  enum DisparityFiltering {
     Filtering_None = 0,
-    Filtering_Bilateral = 1,
-    Filtering_WLS_LeftOnly = 2,
-    Filtering_WLS_LeftRight = 3
+    Filtering_Bilateral = 1
+    // Filtering_WLS_LeftOnly = 2,
+    // Filtering_WLS_LeftRight = 3
   };
 
   VPIStereoMatcherParams()
@@ -55,8 +55,12 @@ struct VPIStereoMatcherParams {
     _image_type = img_type;
   }
 
-  const cv::Size image_size() const { return _image_size; }
   const int image_type() const { return _image_type; }
+
+  // image_size is the **input** image size
+  // scaled_image_size is the scaled-down image size
+  // (if used)
+  const cv::Size image_size() const { return _image_size; }
   const cv::Size scaled_image_size() const {
     return cv::Size(_image_size.width >> downsample_log2,
                     _image_size.height >> downsample_log2);
@@ -69,10 +73,11 @@ struct VPIStereoMatcherParams {
 
   float p1, p2, uniqueness;
 
-  DisparityFiltering_t filtering;
+  DisparityFiltering filtering;
 
   void dump() const {
     ROS_INFO("===================================");
+    ROS_INFO("~~ VPI Matcher ~~");
     ROS_INFO("original img size : w %d, h %d", image_size().width,
              image_size().height);
     ROS_INFO("       Downsample : %d", downsample());
@@ -81,6 +86,17 @@ struct VPIStereoMatcherParams {
     ROS_INFO("               P2 : %f", p2);
     ROS_INFO(" Uniqueness ratio : %f", uniqueness);
     ROS_INFO("        Filtering : %s", disparity_filter_as_string());
+    if (filtering == DisparityFiltering::Filtering_Bilateral) {
+      ROS_INFO_STREAM("Bilat      Radius : " << bilateral_filter_params.radius);
+      ROS_INFO_STREAM(
+          "Bilat   Num iters : " << bilateral_filter_params.num_iters);
+      // ROS_INFO_STREAM(
+      //     "Bilat       Sigma : " << bilateral_filter_params.sigma_range);
+      // ROS_INFO_STREAM("Bilat Max disc thr : "
+      //                 << bilateral_filter_params.max_disc_threshold);
+      // ROS_INFO_STREAM(
+      //     "Bilat    Edge thr : " << bilateral_filter_params.edge_threshold);
+    }
     ROS_INFO("===================================");
   }
 
@@ -93,16 +109,36 @@ struct VPIStereoMatcherParams {
   const char *disparity_filter_as_string() const {
     if (filtering == Filtering_None) {
       return "None";
-    } else if (filtering == Filtering_Bilateral) {
+    } else if (filtering == DisparityFiltering::Filtering_Bilateral) {
       return "Bilateral";
-    } else if (filtering == Filtering_WLS_LeftOnly) {
-      return "WLS Left-only";
-    } else if (filtering == Filtering_WLS_LeftRight) {
-      return "WLS Left-Right";
     }
+    // else if (filtering == Filtering_WLS_LeftOnly) {
+    //   return "WLS Left-only";
+    // } else if (filtering == Filtering_WLS_LeftRight) {
+    //   return "WLS Left-Right";
+    // }
 
     return "(Unknown)";
   }
+
+  struct BilateralFilterParams {
+    BilateralFilterParams()
+        : radius(3),
+          num_iters(1)
+    // sigma_range(10),
+    //  max_disc_threshold(0.2),
+    //  edge_threshold(0.1)
+    {}
+
+    int radius;
+    int num_iters;
+
+    // As of OpenCV 4.0 these aren't actually exposed through the OpenCV API
+    // double sigma_range;
+    // double max_disc_threshold;
+    // double edge_threshold;
+
+  } bilateral_filter_params;
 
  private:
   cv::Size _image_size;

@@ -58,13 +58,12 @@ using namespace std::chrono;
 
 #include "code_timing/code_timing.h"
 #include "gpu_stereo_image_proc/camera_info_conversions.h"
-#include "gpu_stereo_image_proc/msg_conversions.h"
+#include "gpu_stereo_image_proc/ros_topic_names.h"
+
 // #include
 // "gpu_stereo_image_proc/visionworks/vx_bidirectional_stereo_matcher.h"
 #include "gpu_stereo_image_proc/nodelet_base.h"
 #include "gpu_stereo_image_proc/vpi/vpi_stereo_matcher.h"
-#include "gpu_stereo_image_proc_common/DisparityBilateralFilterConfig.h"
-#include "gpu_stereo_image_proc_common/DisparityWLSFilterConfig.h"
 #include "gpu_stereo_image_proc_vpi/VPI_SGBMConfig.h"
 
 namespace gpu_stereo_image_proc_vpi {
@@ -72,6 +71,11 @@ namespace gpu_stereo_image_proc_vpi {
 using namespace sensor_msgs;
 using namespace stereo_msgs;
 using namespace message_filters::sync_policies;
+
+using gpu_stereo_image_proc::RosTopic;
+using gpu_stereo_image_proc::RosTopicNameMap;
+using gpu_stereo_image_proc::RosTopicNameMap_V1;
+using gpu_stereo_image_proc::RosTopicNameMap_V2;
 
 class VPIDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   boost::shared_ptr<image_transport::ImageTransport> it_;
@@ -82,22 +86,13 @@ class VPIDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   ros::Publisher pub_depth_;
 
   ros::Publisher scaled_left_camera_info_, scaled_right_camera_info_;
-  ros::Publisher scaled_left_rect_;
+  ros::Publisher scaled_left_rect_, scaled_right_rect_;
 
   // Dynamic reconfigure
   boost::recursive_mutex config_mutex_;
   typedef VPI_SGBMConfig Config;
   typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
   boost::shared_ptr<ReconfigureServer> reconfigure_server_;
-
-  // typedef gpu_stereo_image_proc::DisparityBilateralFilterConfig
-  //     BilateralFilterConfig;
-  // boost::shared_ptr<dynamic_reconfigure::Server<BilateralFilterConfig>>
-  //     dyncfg_bilateral_filter_;
-
-  // typedef gpu_stereo_image_proc::DisparityWLSFilterConfig WLSFilterConfig;
-  // boost::shared_ptr<dynamic_reconfigure::Server<WLSFilterConfig>>
-  //     dyncfg_wls_filter_;
 
   std::unique_ptr<code_timing::CodeTiming> code_timing_;
 
@@ -157,39 +152,58 @@ void VPIDisparityNodelet::onInit() {
   ros::SubscriberStatusCallback connect_cb =
       boost::bind(&DisparityNodeletBase::connectCb, this);
 
+  std::string which_topic_names;
+  private_nh.param("ros_topics_version", which_topic_names, std::string("v2"));
+
+  RosTopicNameMap topic_names;
+  if (which_topic_names == "v1") {
+    NODELET_INFO("Using \"v1\" ROS topic names");
+    topic_names = RosTopicNameMap_V1;
+  } else {
+    NODELET_INFO("Using \"v2\" ROS topic names");
+    topic_names = RosTopicNameMap_V2;
+  }
+
   // Make sure we don't enter connectCb() between advertising and assigning to
   // pub_disparity_
   {
     boost::lock_guard<boost::mutex> lock(connect_mutex_);
-    pub_disparity_ =
-        nh.advertise<DisparityImage>("disparity", 1, connect_cb, connect_cb);
+    pub_disparity_ = nh.advertise<DisparityImage>(
+        topic_names[RosTopic::DownsampledDisparity], 1, connect_cb, connect_cb);
 
-    pub_depth_ = nh.advertise<Image>("depth", 1, connect_cb, connect_cb);
+    pub_depth_ = nh.advertise<Image>(topic_names[RosTopic::DownsampledDepth], 1,
+                                     connect_cb, connect_cb);
 
     pub_confidence_ =
-        nh.advertise<Image>("confidence", 1, connect_cb, connect_cb);
+        nh.advertise<Image>(topic_names[RosTopic::DownsampledConfidence], 1,
+                            connect_cb, connect_cb);
 
     private_nh.param("debug", debug_topics_, false);
     if (debug_topics_) {
       ROS_INFO("Publishing debug topics");
-      debug_lr_disparity_ =
-          nh.advertise<DisparityImage>("debug/lr_disparity", 1);
+      debug_lr_disparity_ = nh.advertise<DisparityImage>(
+          topic_names[RosTopic::DownsampledDebugLRDisparity], 1);
 
-      debug_rl_disparity_ =
-          nh.advertise<DisparityImage>("debug/rl_disparity", 1);
+      debug_rl_disparity_ = nh.advertise<DisparityImage>(
+          topic_names[RosTopic::DownsampledDebugRLDisparity], 1);
 
       debug_raw_disparity_ = nh.advertise<DisparityImage>(
-          "debug/raw_disparity", 1, connect_cb, connect_cb);
+          topic_names[RosTopic::DownsampledDebugRawDisparity], 1, connect_cb,
+          connect_cb);
 
-      debug_disparity_mask_ = nh.advertise<Image>("debug/confidence_mask", 1);
+      debug_disparity_mask_ = nh.advertise<Image>(
+          topic_names[RosTopic::DownsampledDebugConfidenceMask], 1);
     }
 
-    scaled_left_camera_info_ =
-        nh.advertise<CameraInfo>("left/scaled_camera_info", 1);
-    scaled_right_camera_info_ =
-        nh.advertise<CameraInfo>("right/scaled_camera_info", 1);
+    scaled_left_camera_info_ = nh.advertise<CameraInfo>(
+        topic_names[RosTopic::DownsampledCameraInfoLeft], 1);
+    scaled_right_camera_info_ = nh.advertise<CameraInfo>(
+        topic_names[RosTopic::DownsampledCameraInfoRight], 1);
 
-    scaled_left_rect_ = nh.advertise<Image>("left/scaled_image_rect", 1);
+    scaled_left_rect_ =
+        nh.advertise<Image>(topic_names[RosTopic::DownsampledRectifiedLeft], 1);
+    scaled_right_rect_ = nh.advertise<Image>(
+        topic_names[RosTopic::DownsampledRectifiedRight], 1);
   }
 }
 
@@ -252,37 +266,6 @@ void VPIDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
   //   debug_raw_disparity_.publish(raw_dg.getDisparity());
   // }
 
-  // if (std::shared_ptr<VXBidirectionalStereoMatcher> bm =
-  //         std::dynamic_pointer_cast<VXBidirectionalStereoMatcher>(
-  //             stereo_matcher_)) {
-  //   // Publish confidence
-  //   cv::Mat confidence = bm->confidenceMat();
-  //   cv_bridge::CvImage confidence_bridge(l_image_msg->header, "32FC1",
-  //                                        confidence);
-  //   pub_confidence_.publish(confidence_bridge.toImageMsg());
-
-  //   if (confidence_threshold_ > 0) {
-  //     // Since we use the mask to **discard** disparities with low
-  //     confidence,
-  //     // use CMP_LT to **set** pixels in the mask which have a confidence
-  //     // below the threshold.
-  //     cv::Mat confidence_mask(confidence.size(), CV_8UC1, cv::Scalar(0));
-  //     cv::compare(confidence, confidence_threshold_, confidence_mask,
-  //                 cv::CMP_LT);
-
-  //     if (debug_topics_) {
-  //       cv_bridge::CvImage disparity_mask_bridge(l_image_msg->header,
-  //       "mono8",
-  //                                                confidence_mask);
-  //       debug_disparity_mask_.publish(disparity_mask_bridge.toImageMsg());
-  //     }
-
-  //     // Erase disparity values with low confidence
-  //     const int masked_disparity_value = min_disparity;
-  //     disparityS16.setTo(masked_disparity_value, confidence_mask);
-  //   }
-  // }
-
   // cv::Mat confidence = stereo_matcher_->confidence();
   // cv_bridge::CvImage confidence_bridge(l_image_msg->header, "8UC1",
   //                                      confidence);
@@ -298,31 +281,20 @@ void VPIDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
   scaled_left_camera_info_.publish(scaled_camera_info_l);
   scaled_right_camera_info_.publish(scaled_camera_info_r);
 
-  // cv_bridge::CvImage left_rect_msg_bridge(l_image_msg->header, "mono8",
-  //                                         stereo_matcher_->scaledLeftRect());
-  // scaled_left_rect_.publish(left_rect_msg_bridge.toImageMsg());
-
-  // if (debug_topics_) {
-  //   // This results in an copy of the mat, so only do it if necessary..
-  //   cv::Mat scaledDisparity = stereo_matcher_->unfilteredDisparityMat();
-  //   if (!scaledDisparity.empty()) {
-  //     DisparityImageGenerator lr_disp_dg(l_image_msg, scaledDisparity,
-  //                                        scaled_model, min_disparity,
-  //                                        max_disparity, border);
-  //     DisparityImagePtr lr_disp_msg = lr_disp_dg.getDisparity();
-  //     debug_lr_disparity_.publish(lr_disp_msg);
-  //   }
-
-  // }
+  {
+    cv_bridge::CvImage left_rect_msg_bridge(l_image_msg->header, "mono8",
+                                            stereo_matcher_->scaledLeftRect());
+    scaled_left_rect_.publish(left_rect_msg_bridge.toImageMsg());
+  }
+  {
+    cv_bridge::CvImage right_rect_msg_bridge(
+        r_image_msg->header, "mono8", stereo_matcher_->scaledRightRect());
+    scaled_right_rect_.publish(right_rect_msg_bridge.toImageMsg());
+  }
 }
 
 void VPIDisparityNodelet::configCb(Config &config, uint32_t level) {
-  // Settings for the nodelet itself
-  // confidence_threshold_ = config.confidence_threshold;
-
-  //  params_.window_size = config.correlation_window_size;
   params_.downsample_log2 = config.downsample;
-  //  params_.quality = config.quality;
   params_.confidence_threshold = config.confidence_threshold;
 
   params_.p1 = config.P1;
@@ -334,13 +306,32 @@ void VPIDisparityNodelet::configCb(Config &config, uint32_t level) {
 #else
   if (config.max_disparity > 64) {
     ROS_WARN(
-        "!!! Max disparity for this version of VPI is 64.   Capping disparity "
+        "!!! Max disparity for this version of VPI is 64.   Limiting disparity "
         "to 64");
     params_.max_disparity = 64;
   } else {
     params_.max_disparity = config.max_disparity;
   }
 #endif
+
+  if (config.disparity_filter == VPI_SGBM_BilateralFilter) {
+    ROS_INFO("Enabling bilateral filtering");
+    params_.filtering =
+        VPIStereoMatcherParams::DisparityFiltering::Filtering_Bilateral;
+  } else {
+    ROS_INFO("Disabling filtering");
+    params_.filtering =
+        VPIStereoMatcherParams::DisparityFiltering::Filtering_None;
+  }
+  // Disparity filter parameters
+  params_.bilateral_filter_params.radius = config.radius;
+  params_.bilateral_filter_params.num_iters = config.num_iters;
+
+  // As of OpenCV 4.0 these aren't actually exposed through the OpenCV API
+  // params_.bilateral_filter_params.sigma_range = config.sigma_range;
+  // params_.bilateral_filter_params.max_disc_threshold =
+  //     config.max_disc_threshold;
+  // params_.bilateral_filter_params.edge_threshold = config.edge_threshold;
 
   update_stereo_matcher();
 }

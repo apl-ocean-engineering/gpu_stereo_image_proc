@@ -31,53 +31,57 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
-#pragma once
 
-#include <NVX/nvx.h>
-#include <VX/vx.h>
-#include <VX/vxu.h>
+#include <ros/ros.h>
 
-#include <opencv2/core.hpp>
+#include <NVX/nvx_opencv_interop.hpp>
+#include <opencv2/stereo.hpp>
+#include <opencv2/ximgproc/disparity_filter.hpp>
 
 #include "gpu_stereo_image_proc/visionworks/vx_stereo_matcher.h"
 
 namespace gpu_stereo_image_proc_visionworks {
 
-class VXBidirectionalStereoMatcher : public VXStereoMatcher {
- public:
-  VXBidirectionalStereoMatcher(const VXStereoMatcherParams &params);
+VXStereoMatcherWLSLeftFilter::VXStereoMatcherWLSLeftFilter(
+    const VXStereoMatcherParams &params)
+    : VXStereoMatcher(params) {
+  ;
+}
 
-  ~VXBidirectionalStereoMatcher();
+VXStereoMatcherWLSLeftFilter::~VXStereoMatcherWLSLeftFilter() { ; }
 
-  void compute(cv::InputArray left, cv::InputArray right) override;
+void VXStereoMatcherWLSLeftFilter::compute(cv::InputArray left,
+                                           cv::InputArray right) {
+  VXStereoMatcher::compute(left, right);
 
-  cv::Mat disparity() const override { return filter_output_; }
+  // Copied from disparity_filters.cpp
+  // https://github.com/opencv/opencv_contrib/blob/daaf645151b7afbafabfacf71ae2880cf6fc904e/modules/ximgproc/src/disparity_filters.cpp#L444C1-L444C107
 
-  cv::Mat confidenceMat() const { return confidence_; }
+  const int min_disp = params_.min_disparity;
+  const int num_disp = (params_.max_disparity - params_.min_disparity);
+  const int wsize = params_.sad_win_size;
+  const int wsize2 = wsize / 2;
 
-  cv::Mat RLDisparityMat() const {
-    return vxImageToMatWrapper(flipped_rl_disparity_);
-  }
+  cv ::Ptr<cv::ximgproc::DisparityWLSFilter> wls =
+      cv::ximgproc::createDisparityWLSFilterGeneric(false);
 
- private:
-  vx_image flipped_left_;
-  vx_image flipped_right_;
-  vx_image flipped_rl_disparity_;
+  wls->setLambda(params_.wls_filter_params.lambda);
+  wls->setLRCthresh(params_.wls_filter_params.lrc_threshold);
+  wls->setDepthDiscontinuityRadius(
+      params_.wls_filter_params.discontinuity_radius);
+  wls->setSigmaColor(params_.wls_filter_params.sigma_color);
 
-  cv::Mat filter_output_, confidence_;
+  nvx_cv::VXImageToCVMatMapper left_map(left_scaled_, 0, NULL, VX_READ_ONLY,
+                                        VX_MEMORY_TYPE_HOST);
+  nvx_cv::VXImageToCVMatMapper lr_disparity_map(
+      disparity_, 0, NULL, VX_READ_ONLY, VX_MEMORY_TYPE_HOST);
 
-  // struct WLSParameters {
-  //   double lambda;
-  //   int lrc_threshold;
-  // } _wls_params;
+  const int border = params_.sad_win_size;
+  const cv::Rect roi(border, 0, left_map.getMat().cols - 2 * border,
+                     left_map.getMat().rows);
 
-  // No default constructor
-  VXBidirectionalStereoMatcher() = delete;
-
-  // This class is non-copyable
-  VXBidirectionalStereoMatcher(const VXBidirectionalStereoMatcher &) = delete;
-  VXBidirectionalStereoMatcher &operator=(
-      const VXBidirectionalStereoMatcher &) = delete;
-};
+  wls->filter(lr_disparity_map.getMat(), left_map.getMat(), filter_output_,
+              cv::Mat(), roi);
+}
 
 }  // namespace gpu_stereo_image_proc_visionworks

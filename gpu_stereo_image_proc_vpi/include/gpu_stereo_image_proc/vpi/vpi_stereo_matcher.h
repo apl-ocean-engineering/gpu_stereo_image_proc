@@ -54,20 +54,21 @@ class VPIStereoMatcher {
 
   const VPIStereoMatcherParams &params() const { return params_; }
 
-  // Note these perform a **DEEP COPY** from GPU memory to CPU memory
-  virtual cv::Mat disparity(); 
+  virtual cv::Mat disparity();
   virtual cv::Mat confidence();
+
+  // Note these perform a **DEEP COPY** from GPU memory to CPU memory
+  cv::Mat scaledLeftRect();
+  cv::Mat scaledRightRect();
 
  protected:
   VPIPayload stereo_payload_;
   VPIStream stream_;
 
-  // Scaled images (equal to {left|right}_image_ if not scaling)
   VPIImage left_blurred_, right_blurred_;
   VPIImage left_scaled_, right_scaled_;
-  VPIImage confidence_, disparity_, disparity_filtered_;
 
-  VPIImage disparity_output_;
+  VPIImage disparity_, disparity_filtered_, disparity_output_, confidence_;
 
   VPIStereoMatcherParams params_;
 

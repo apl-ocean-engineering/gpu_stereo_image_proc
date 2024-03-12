@@ -66,18 +66,20 @@ class VXStereoMatcher {
 
   cv::Mat scaledLeftRect() const { return vxImageToMatWrapper(left_scaled_); }
 
-  virtual cv::Mat disparity() const {
-    if (params_.filtering == VXStereoMatcherParams::Filtering_Bilateral) {
-      // I suspect this is inefficient...
-      cv::Mat out;
-      g_filtered_.download(out);
-      return out;
-    } else {
-      return vxImageToMatWrapper(disparity_);
-    }
-  }
+  cv::Mat scaledRightRect() const { return vxImageToMatWrapper(right_scaled_); }
+
+  virtual cv::Mat disparity() const { return vxImageToMatWrapper(disparity_); }
 
  protected:
+  cv::Size leftScaledSize() const {
+    cv::Size disparity_size;
+    VX_CHECK_STATUS(vxQueryImage(left_scaled_, VX_IMAGE_WIDTH,
+                                 &disparity_size.width, sizeof(vx_uint32)));
+    VX_CHECK_STATUS(vxQueryImage(left_scaled_, VX_IMAGE_HEIGHT,
+                                 &disparity_size.height, sizeof(vx_uint32)));
+    return disparity_size;
+  }
+
   vx_context context_;
   vx_graph graph_;
 
@@ -96,14 +98,58 @@ class VXStereoMatcher {
 
   std::unique_ptr<VxImageScaler> left_scaler_, right_scaler_;
 
-  // GpuMat which stores the result **if** filtering is enabled
-  cv::cuda::GpuMat g_filtered_;
-
   VXStereoMatcher() = delete;
 
   // noncopyable
   VXStereoMatcher(const VXStereoMatcher &) = delete;
   VXStereoMatcher &operator=(const VXStereoMatcher &) = delete;
+};
+
+class VXStereoMatcherBilateralFilter : public VXStereoMatcher {
+ public:
+  VXStereoMatcherBilateralFilter(const VXStereoMatcherParams &params);
+  virtual ~VXStereoMatcherBilateralFilter();
+
+  void compute(cv::InputArray left, cv::InputArray right) override;
+
+  cv::Mat disparity() const override {
+    // I suspect this is inefficient...
+    cv::Mat out;
+    g_filtered_.download(out);
+    return out;
+  }
+
+ protected:
+ private:
+  // GpuMat which stores the result **if** filtering is enabled
+  cv::cuda::GpuMat g_filtered_;
+
+  VXStereoMatcherBilateralFilter() = delete;
+  VXStereoMatcherBilateralFilter(const VXStereoMatcherBilateralFilter &) =
+      delete;
+  VXStereoMatcherBilateralFilter &operator=(
+      const VXStereoMatcherBilateralFilter &) = delete;
+};
+
+class VXStereoMatcherWLSLeftFilter : public VXStereoMatcher {
+ public:
+  VXStereoMatcherWLSLeftFilter(const VXStereoMatcherParams &params);
+  virtual ~VXStereoMatcherWLSLeftFilter();
+
+  void compute(cv::InputArray left, cv::InputArray right) override;
+
+  cv::Mat disparity() const override {
+    // WLS filter runs on the CPU (for now), so it's output is natively on CPU
+    return filter_output_;
+  }
+
+ protected:
+  cv::Mat filter_output_;
+
+  VXStereoMatcherWLSLeftFilter() = delete;
+  VXStereoMatcherWLSLeftFilter(const VXStereoMatcherWLSLeftFilter &) = delete;
+  VXStereoMatcherWLSLeftFilter &operator=(
+      const VXStereoMatcherWLSLeftFilter &) = delete;
 };
 
 }  // namespace gpu_stereo_image_proc_visionworks

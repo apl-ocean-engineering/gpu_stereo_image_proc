@@ -31,53 +31,42 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
-#pragma once
 
-#include <NVX/nvx.h>
-#include <VX/vx.h>
-#include <VX/vxu.h>
+#include <ros/ros.h>
 
-#include <opencv2/core.hpp>
+#include <NVX/nvx_opencv_interop.hpp>
+#include <opencv2/cudastereo.hpp>
 
 #include "gpu_stereo_image_proc/visionworks/vx_stereo_matcher.h"
 
 namespace gpu_stereo_image_proc_visionworks {
 
-class VXBidirectionalStereoMatcher : public VXStereoMatcher {
- public:
-  VXBidirectionalStereoMatcher(const VXStereoMatcherParams &params);
+VXStereoMatcherBilateralFilter::VXStereoMatcherBilateralFilter(
+    const VXStereoMatcherParams &params)
+    : VXStereoMatcher(params) {
+  ;
+}
 
-  ~VXBidirectionalStereoMatcher();
+VXStereoMatcherBilateralFilter::~VXStereoMatcherBilateralFilter() { ; }
 
-  void compute(cv::InputArray left, cv::InputArray right) override;
+void VXStereoMatcherBilateralFilter::compute(cv::InputArray left,
+                                             cv::InputArray right) {
+  VXStereoMatcher::compute(left, right);
 
-  cv::Mat disparity() const override { return filter_output_; }
+  const int nDisp = (params_.max_disparity - params_.min_disparity);
+  const int radius = 3;
+  const int iters = 1;
 
-  cv::Mat confidenceMat() const { return confidence_; }
+  nvx_cv::VXImageToCVMatMapper disparity_map(disparity_, 0, NULL, VX_READ_ONLY,
+                                             NVX_MEMORY_TYPE_CUDA);
+  nvx_cv::VXImageToCVMatMapper left_map(left_scaled_, 0, NULL, VX_READ_ONLY,
+                                        NVX_MEMORY_TYPE_CUDA);
 
-  cv::Mat RLDisparityMat() const {
-    return vxImageToMatWrapper(flipped_rl_disparity_);
-  }
+  cv::Ptr<cv::cuda::DisparityBilateralFilter> pCudaBilFilter =
+      cv::cuda::createDisparityBilateralFilter(nDisp, radius, iters);
 
- private:
-  vx_image flipped_left_;
-  vx_image flipped_right_;
-  vx_image flipped_rl_disparity_;
-
-  cv::Mat filter_output_, confidence_;
-
-  // struct WLSParameters {
-  //   double lambda;
-  //   int lrc_threshold;
-  // } _wls_params;
-
-  // No default constructor
-  VXBidirectionalStereoMatcher() = delete;
-
-  // This class is non-copyable
-  VXBidirectionalStereoMatcher(const VXBidirectionalStereoMatcher &) = delete;
-  VXBidirectionalStereoMatcher &operator=(
-      const VXBidirectionalStereoMatcher &) = delete;
-};
+  pCudaBilFilter->apply(disparity_map.getGpuMat(), left_map.getGpuMat(),
+                        g_filtered_);
+}
 
 }  // namespace gpu_stereo_image_proc_visionworks

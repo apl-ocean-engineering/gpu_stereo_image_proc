@@ -1,6 +1,8 @@
 # gpu_stereo_image_proc
 
-> NOTE:  As this repo has increasing focused on [Trisect underwater trifocal sensor](https://trisect-perception-sensor.gitlab.io/), I've renamed the primary branch to `trisect-dev` and retired the previous `melodic-devel` branch.
+> NOTE:  This repo is focused on the [Trisect underwater trifocal sensor](https://trisect-perception-sensor.gitlab.io/).  The primary branch is `jetpack-4.5.1` to match the current distribution on the Xavier-NX-based Trisect.   It's strongly tied to the Visionworks and VPI APIs installed by that version of Jetpack.
+
+The `jetpack-5.1.2` is our current "next development" branch for that version of Jetpack on the new Orin-NX-based development system.
 
 ## Overview
 
