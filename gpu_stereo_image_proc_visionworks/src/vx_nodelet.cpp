@@ -318,10 +318,19 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
   scaled_left_camera_info_.publish(scaled_model_.left().cameraInfo());
   scaled_right_camera_info_.publish(scaled_model_.right().cameraInfo());
 
-  cv_bridge::CvImage left_rect_msg_bridge(l_image_msg->header,
-                                          l_image_msg->encoding,
-                                          stereo_matcher_->scaledLeftRect());
-  scaled_left_rect_.publish(left_rect_msg_bridge.toImageMsg());
+  {
+    cv_bridge::CvImage left_rect_msg_bridge(l_image_msg->header,
+                                            l_image_msg->encoding,
+                                            stereo_matcher_->scaledLeftRect());
+    scaled_left_rect_.publish(left_rect_msg_bridge.toImageMsg());
+  }
+
+  {
+    cv_bridge::CvImage right_rect_msg_bridge(
+        r_image_msg->header, r_image_msg->encoding,
+        stereo_matcher_->scaledRightRect());
+    scaled_right_rect_.publish(right_rect_msg_bridge.toImageMsg());
+  }
 
   if (debug_topics_) {
     // This results in an copy of the mat, so only do it if necessary..
