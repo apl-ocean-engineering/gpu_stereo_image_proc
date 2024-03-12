@@ -41,6 +41,7 @@
 #include <opencv2/cudastereo.hpp>
 #include <opencv2/cudawarping.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/ximgproc/disparity_filter.hpp>
 
 #include "gpu_stereo_image_proc/visionworks/vx_conversions.h"
 
@@ -54,8 +55,10 @@ VXStereoMatcher::VXStereoMatcher(const VXStereoMatcherParams &params)
       left_scaled_(nullptr),
       right_scaled_(nullptr),
       disparity_(nullptr),
-      left_scaler_(new VxGaussianImageScaler(params.downsample_log2)),
-      right_scaler_(new VxGaussianImageScaler(params.downsample_log2)),
+      left_scaler_(new VxGaussianImageScaler(params.downsample_log2,
+                                             params.disparity_padding())),
+      right_scaler_(new VxGaussianImageScaler(params.downsample_log2,
+                                              params.disparity_padding())),
       params_(params) {
   vx_status status;
 
@@ -73,13 +76,15 @@ VXStereoMatcher::VXStereoMatcher(const VXStereoMatcherParams &params)
                                params.image_size().height, VX_DF_IMAGE_U8);
   VX_CHECK_STATUS(vxGetStatus((vx_reference)right_image_));
 
-  disparity_ =
-      vxCreateImage(context_, params.scaled_image_size().width,
-                    params.scaled_image_size().height, VX_DF_IMAGE_S16);
-  VX_CHECK_STATUS(vxGetStatus((vx_reference)disparity_));
-
   left_scaled_ = left_scaler_->addToGraph(context_, graph_, left_image_);
   right_scaled_ = right_scaler_->addToGraph(context_, graph_, right_image_);
+
+  disparity_ = vxCreateImage(context_, leftScaledSize().width,
+                             leftScaledSize().height, VX_DF_IMAGE_S16);
+  VX_CHECK_STATUS(vxGetStatus((vx_reference)disparity_));
+
+  std::cout << "Disparity image is " << leftScaledSize().width << " x "
+            << leftScaledSize().height << std::endl;
 
   vx_node sgm_node = nvxSemiGlobalMatchingNode(
       graph_, left_scaled_, right_scaled_, disparity_, params.min_disparity,
@@ -112,23 +117,6 @@ void VXStereoMatcher::compute(cv::InputArray left, cv::InputArray right) {
 
   const auto status = vxProcessGraph(graph_);
   ROS_ASSERT(status == VX_SUCCESS);
-
-  if (params_.filtering == VXStereoMatcherParams::Filtering_Bilateral) {
-    const int nDisp = (params_.max_disparity - params_.min_disparity);
-    const int radius = 3;
-    const int iters = 1;
-
-    nvx_cv::VXImageToCVMatMapper disparity_map(
-        disparity_, 0, NULL, VX_READ_ONLY, NVX_MEMORY_TYPE_CUDA);
-    nvx_cv::VXImageToCVMatMapper left_map(left_scaled_, 0, NULL, VX_READ_ONLY,
-                                          NVX_MEMORY_TYPE_CUDA);
-
-    cv::Ptr<cv::cuda::DisparityBilateralFilter> pCudaBilFilter =
-        cv::cuda::createDisparityBilateralFilter(nDisp, radius, iters);
-
-    pCudaBilFilter->apply(disparity_map.getGpuMat(), left_map.getGpuMat(),
-                          g_filtered_);
-  }
 }
 
 }  // namespace gpu_stereo_image_proc_visionworks

@@ -63,8 +63,6 @@ using namespace std::chrono;
 // "gpu_stereo_image_proc/visionworks/vx_bidirectional_stereo_matcher.h"
 #include "gpu_stereo_image_proc/nodelet_base.h"
 #include "gpu_stereo_image_proc/vpi/vpi_stereo_matcher.h"
-#include "gpu_stereo_image_proc_common/DisparityBilateralFilterConfig.h"
-#include "gpu_stereo_image_proc_common/DisparityWLSFilterConfig.h"
 #include "gpu_stereo_image_proc_vpi/VPI_SGBMConfig.h"
 
 namespace gpu_stereo_image_proc_vpi {
@@ -89,15 +87,6 @@ class VPIDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   typedef VPI_SGBMConfig Config;
   typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
   boost::shared_ptr<ReconfigureServer> reconfigure_server_;
-
-  // typedef gpu_stereo_image_proc::DisparityBilateralFilterConfig
-  //     BilateralFilterConfig;
-  // boost::shared_ptr<dynamic_reconfigure::Server<BilateralFilterConfig>>
-  //     dyncfg_bilateral_filter_;
-
-  // typedef gpu_stereo_image_proc::DisparityWLSFilterConfig WLSFilterConfig;
-  // boost::shared_ptr<dynamic_reconfigure::Server<WLSFilterConfig>>
-  //     dyncfg_wls_filter_;
 
   std::unique_ptr<code_timing::CodeTiming> code_timing_;
 
@@ -143,6 +132,8 @@ void VPIDisparityNodelet::onInit() {
   // config and new images.  Don't want to have to deconflict those
   ros::NodeHandle &nh = getNodeHandle();
   ros::NodeHandle &private_nh = getPrivateNodeHandle();
+
+  code_timing_.reset(new code_timing::CodeTiming(nh, "VPIDisparityNodelet"));
 
   // Set up dynamic reconfiguration
   ReconfigureServer::CallbackType f =
@@ -239,9 +230,9 @@ void VPIDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
 
   cv::Mat disparityS16 = stereo_matcher_->disparity();
 
-  // double mmin, mmax;
-  // cv::minMaxLoc(disparityS16, &mmin, &mmax);
-  // NODELET_INFO_STREAM("Disparity min " << mmin << "; " << mmax);
+  double mmin, mmax;
+  cv::minMaxLoc(disparityS16, &mmin, &mmax);
+  NODELET_INFO_STREAM("Disparity min " << mmin << "; " << mmax);
 
   // if (debug_topics_) {
   //   DisparityImageGenerator raw_dg(l_image_msg, disparityS16, scaled_model,
@@ -328,13 +319,24 @@ void VPIDisparityNodelet::configCb(Config &config, uint32_t level) {
 #else
   if (config.max_disparity > 64) {
     ROS_WARN(
-        "!!! Max disparity for this version of VPI is 64.   Capping disparity "
+        "!!! Max disparity for this version of VPI is 64.   Limiting disparity "
         "to 64");
     params_.max_disparity = 64;
   } else {
     params_.max_disparity = config.max_disparity;
   }
 #endif
+
+  // // Disparity filter parameters
+  // params_.disp_filter.sigma_range = config.sigma_range;
+  // params_.disp_filter.radius = config.radius;
+  // params_.disp_filter.num_iters = config.num_iters;
+  // params_.disp_filter.max_disc_threshold = config.max_disc_threshold;
+  // params_.disp_filter.edge_threshold = config.edge_threshold;
+
+  // // WLS filter parameters
+  // params_.wls_filter.lambda = config.lambda;
+  // params_.wls_filter.lrc_threshold = config.lrc_threshold;
 
   update_stereo_matcher();
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vpi/Status.h>
+#include <vpi/Version.h>
 
 #define VPI_CHECK_STATUS(s)                                    \
   do {                                                         \
@@ -11,3 +12,5 @@
     }                                                          \
     ROS_ASSERT(__status == VPI_SUCCESS);                       \
   } while (false)
+
+#define VPI_VERSION_WITH_VIEWS NV_VPI_MAKE_VERSION(2, 0, 0)

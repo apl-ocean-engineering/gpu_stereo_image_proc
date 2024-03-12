@@ -58,8 +58,6 @@
 #include "gpu_stereo_image_proc/nodelet_base.h"
 #include "gpu_stereo_image_proc/visionworks/vx_bidirectional_stereo_matcher.h"
 #include "gpu_stereo_image_proc/visionworks/vx_stereo_matcher.h"
-#include "gpu_stereo_image_proc_common/DisparityBilateralFilterConfig.h"
-#include "gpu_stereo_image_proc_common/DisparityWLSFilterConfig.h"
 #include "gpu_stereo_image_proc_visionworks/VXSGBMConfig.h"
 
 namespace gpu_stereo_image_proc_visionworks {
@@ -83,15 +81,6 @@ class VXDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
   boost::shared_ptr<ReconfigureServer> reconfigure_server_;
 
-  typedef gpu_stereo_image_proc::DisparityBilateralFilterConfig
-      BilateralFilterConfig;
-  boost::shared_ptr<dynamic_reconfigure::Server<BilateralFilterConfig>>
-      dyncfg_bilateral_filter_;
-
-  typedef gpu_stereo_image_proc::DisparityWLSFilterConfig WLSFilterConfig;
-  boost::shared_ptr<dynamic_reconfigure::Server<WLSFilterConfig>>
-      dyncfg_wls_filter_;
-
   std::unique_ptr<code_timing::CodeTiming> code_timing_;
 
   VXStereoMatcherParams params_;
@@ -99,6 +88,8 @@ class VXDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   bool debug_topics_;
 
   unsigned int confidence_threshold_;
+
+  std::mutex matcher_mutex_;
 
   void onInit() override;
 
@@ -116,10 +107,14 @@ class VXDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
                      const CameraInfoConstPtr &r_info_msg) override;
 
   void configCb(Config &config, uint32_t level);
-  void bilateralConfigCb(BilateralFilterConfig &config, uint32_t level);
-  void wlsConfigCb(WLSFilterConfig &config, uint32_t level);
+  // void bilateralConfigCb(BilateralFilterConfig &config, uint32_t level);
+  // void wlsConfigCb(WLSFilterConfig &config, uint32_t level);
 
   bool update_stereo_matcher();
+  bool reset_stereo_matcher() {
+    std::lock_guard<std::mutex> lock_guard(matcher_mutex_);
+    stereo_matcher_ = nullptr;
+  }
 
  public:
   VXDisparityNodelet() : confidence_threshold_(0) { ; }
@@ -136,6 +131,18 @@ void VXDisparityNodelet::onInit() {
       boost::bind(&VXDisparityNodelet::configCb, this, _1, _2);
   reconfigure_server_.reset(new ReconfigureServer(private_nh));
   reconfigure_server_->setCallback(f);
+
+  // These ... don't work
+  // bilateral_nh_ = ros::NodeHandle(nh, "~bilateral_filter");
+  // dyncfg_bilateral_filter_.reset(new
+  // BilateralReconfigureServer(bilateral_nh_));
+  // dyncfg_bilateral_filter_->setCallback(
+  //     boost::bind(&VXDisparityNodelet::bilateralConfigCb, this, _1, _2));
+
+  // wls_nh_ = ros::NodeHandle(nh, "~wls_filter");
+  // dyncfg_wls_filter_.reset(new WLSReconfigureServer(wls_nh_));
+  // dyncfg_wls_filter_->setCallback(
+  //     boost::bind(&VXDisparityNodelet::wlsConfigCb, this, _1, _2));
 
   code_timing_.reset(new code_timing::CodeTiming(nh));
 
@@ -184,11 +191,6 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
                                        const CameraInfoConstPtr &l_info_msg,
                                        const ImageConstPtr &r_image_msg,
                                        const CameraInfoConstPtr &r_info_msg) {
-  // Create cv::Mat views in the two input buffers
-  //  const cv::Mat l_image(cv_bridge::toCvShare(l_image_msg,
-  //  l_image_msg->encoding)->image); const cv::Mat
-  //  r_image(cv_bridge::toCvShare(r_image_msg, l_image_msg->encoding)->image);
-
   // Cast images to MONO8, Visionworks' SGM can only handle 8-bit
   const cv::Mat_<uint8_t> l_image =
       cv_bridge::toCvShare(l_image_msg, sensor_msgs::image_encodings::MONO8)
@@ -203,6 +205,7 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
 
   params_.set_image_size(cv::Size(l_image.cols, l_image.rows), l_image.type());
   if (stereo_matcher_) {
+    // Check for change of image type or size
     if ((stereo_matcher_->params().image_size() != params_.image_size()) ||
         (stereo_matcher_->params().image_type() != params_.image_type())) {
       update_stereo_matcher();
@@ -222,7 +225,21 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
     stereo_matcher_->compute(l_image, r_image);
   }
 
-  cv::Mat_<int16_t> disparityS16 = stereo_matcher_->disparity();
+  // _dispaS16 is a local temporary;  disparityS16 is the "real working copy"
+  // but need to remove disparity padding, if used.
+  cv::Mat_<int16_t> _dispS16 = stereo_matcher_->disparity();
+  cv::Mat_<int16_t> disparityS16;
+
+  if (stereo_matcher_->params().do_disparity_padding) {
+    const auto padding = stereo_matcher_->params().disparity_padding();
+    const auto roi =
+        cv::Rect(padding, 0, _dispS16.cols - 2 * padding, _dispS16.rows);
+    disparityS16 = cv::Mat(_dispS16, roi);
+  } else {
+    disparityS16 = _dispS16;
+    const auto sz = disparityS16.size();
+  }
+
   DisparityImageGenerator dg(scaled_model_,
                              stereo_matcher_->params().min_disparity,
                              stereo_matcher_->params().max_disparity,
@@ -237,12 +254,23 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
           std::dynamic_pointer_cast<VXBidirectionalStereoMatcher>(
               stereo_matcher_)) {
     // Publish confidence
-    cv::Mat confidence = bm->confidenceMat();
+    cv::Mat _confidence = bm->confidenceMat();
+    cv::Mat confidence;
+    // Must ROI confidence as well
+    if (stereo_matcher_->params().do_disparity_padding) {
+      const auto padding = stereo_matcher_->params().disparity_padding();
+      const auto roi =
+          cv::Rect(padding, 0, _dispS16.cols - 2 * padding, _dispS16.rows);
+      confidence = cv::Mat(_confidence, roi);
+    } else {
+      confidence = _confidence;
+    }
+
     cv_bridge::CvImage confidence_bridge(l_image_msg->header, "32FC1",
                                          confidence);
     pub_confidence_.publish(confidence_bridge.toImageMsg());
 
-    if (confidence_threshold_ > 0) {
+    if (confidence_threshold_ > 0 && !confidence.empty()) {
       // Since we use the mask to **discard** disparities with low confidence,
       // use CMP_LT to **set** pixels in the mask which have a confidence
       // below the threshold.
@@ -303,7 +331,7 @@ void VXDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
 }
 
 void VXDisparityNodelet::configCb(Config &config, uint32_t level) {
-  // Settings for the nodelet itself
+  // Settings for this nodelet itself
   confidence_threshold_ = config.confidence_threshold;
 
   // Tweak all settings to be valid
@@ -336,16 +364,17 @@ void VXDisparityNodelet::configCb(Config &config, uint32_t level) {
 
   if (config.disparity_filter == VXSGBM_BilateralFilter) {
     ROS_INFO("Enabling bilateral filtering");
-    params_.filtering = VXStereoMatcherParams::Filtering_Bilateral;
-    // } else if (config.disparity_filter == VXSGBM_WLSFilter_LeftOnly) {
-    //   ROS_INFO("Enabling Left-only WLS filtering");
-    //   params_.filtering = VXStereoMatcherParams::Filtering_WLS_LeftOnly;
+    params_.filtering = VXStereoMatcherParams::DisparityFiltering::Bilateral;
+  } else if (config.disparity_filter == VXSGBM_WLSFilter_LeftOnly) {
+    ROS_INFO("Enabling Left-only WLS filtering");
+    params_.filtering = VXStereoMatcherParams::DisparityFiltering::WLS_LeftOnly;
   } else if (config.disparity_filter == VXSGBM_WLSFilter_LeftRight) {
     ROS_INFO("Enabling Left-Right WLS filtering");
-    params_.filtering = VXStereoMatcherParams::Filtering_WLS_LeftRight;
+    params_.filtering =
+        VXStereoMatcherParams::DisparityFiltering::WLS_LeftRight;
   } else {
     ROS_INFO("Disabling filtering");
-    params_.filtering = VXStereoMatcherParams::Filtering_None;
+    params_.filtering = VXStereoMatcherParams::DisparityFiltering::None;
   }
 
   // check stereo method
@@ -364,31 +393,30 @@ void VXDisparityNodelet::configCb(Config &config, uint32_t level) {
   params_.flags = flags;
   params_.scanline_mask = scanline_mask;
   params_.downsample_log2 = config.downsample;
+  params_.do_disparity_padding = config.do_disparity_padding;
 
-  update_stereo_matcher();
-}
-
-void VXDisparityNodelet::bilateralConfigCb(BilateralFilterConfig &config,
-                                           uint32_t level) {
-  params_.bilateral_filter_params.sigma_range = config.sigma_range;
-  params_.bilateral_filter_params.radius = config.radius;
-  params_.bilateral_filter_params.num_iters = config.num_iters;
+  // Disparity filter parameters
+  params_.bilateral_filter_params.sigma_range =
+      config.groups.bilateral_params.sigma_range;
+  params_.bilateral_filter_params.radius =
+      config.groups.bilateral_params.radius;
+  params_.bilateral_filter_params.num_iters =
+      config.groups.bilateral_params.num_iters;
   params_.bilateral_filter_params.max_disc_threshold =
-      config.max_disc_threshold;
-  params_.bilateral_filter_params.edge_threshold = config.edge_threshold;
+      config.groups.bilateral_params.max_disc_threshold;
+  params_.bilateral_filter_params.edge_threshold =
+      config.groups.bilateral_params.edge_threshold;
 
-  update_stereo_matcher();
-}
+  // WLS filter parameters
+  params_.wls_filter_params.lambda = config.groups.wls_params.lambda;
+  params_.wls_filter_params.lrc_threshold =
+      config.groups.wls_params.lrc_threshold;
 
-void VXDisparityNodelet::wlsConfigCb(WLSFilterConfig &config, uint32_t level) {
-  params_.wls_filter_params.lambda = config.lambda;
-  params_.wls_filter_params.lrc_threshold = config.lrc_threshold;
-
-  update_stereo_matcher();
+  reset_stereo_matcher();
 }
 
 bool VXDisparityNodelet::update_stereo_matcher() {
-  // \todo For safety, should mutex this and imageCb
+  std::lock_guard<std::mutex> lock_guard(matcher_mutex_);
   ROS_WARN("Updating stereo_matcher");
 
   if (!params_.valid()) {
@@ -398,10 +426,21 @@ bool VXDisparityNodelet::update_stereo_matcher() {
 
   params_.dump();
   ROS_WARN("Creating new stereo_matcher");
-  if (params_.filtering == VXStereoMatcherParams::Filtering_WLS_LeftRight) {
+  if (params_.filtering ==
+      VXStereoMatcherParams::DisparityFiltering::WLS_LeftRight) {
     ROS_INFO("Creating VXBidirectionalStereoMatcher");
     stereo_matcher_.reset(new VXBidirectionalStereoMatcher(params_));
+  } else if (params_.filtering ==
+             VXStereoMatcherParams::DisparityFiltering::WLS_LeftOnly) {
+    ROS_INFO("Creating VXStereoMatcherWLSLeftFilter");
+    stereo_matcher_.reset(new VXStereoMatcherWLSLeftFilter(params_));
+
+  } else if (params_.filtering ==
+             VXStereoMatcherParams::DisparityFiltering::Bilateral) {
+    ROS_INFO("Creating VXStereoMatcherBilateralFilter");
+    stereo_matcher_.reset(new VXStereoMatcherBilateralFilter(params_));
   } else {
+    ROS_INFO("Creating VXStereoMatcher");
     stereo_matcher_.reset(new VXStereoMatcher(params_));
   }
   return true;

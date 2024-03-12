@@ -30,6 +30,7 @@ include_directories(include)
 
 find_package(OpenCV 4 REQUIRED)
 include_directories(${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
+
 find_package(VisionWorks REQUIRED)
 include_directories(${VisionWorks_INCLUDE_DIRS})
 
@@ -51,6 +52,8 @@ add_definitions(-DOPENCV_TRAITS_ENABLE_DEPRECATED)
 set(VX_NODELET_NAME vx_stereo_image_proc)
 add_library(${VX_NODELET_NAME}
             src/vx_stereo_matcher.cpp
+            src/vx_stereo_matcher_bilateral_filter.cpp
+            src/vx_stereo_matcher_wls_left_filter.cpp
             src/vx_bidirectional_stereo_matcher.cpp
             src/vx_image_scaler.cpp
             src/vx_conversions.cpp

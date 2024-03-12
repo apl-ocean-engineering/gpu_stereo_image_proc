@@ -57,7 +57,9 @@ class VPIStereoMatcher {
   // cv::Mat scaledLeftRect() const { return vxImageToMatWrapper(left_scaled_);
   // }
 
+  // n.b. this is direct access to the data in disparity_,  **not** a copy
   virtual cv::Mat disparity() const { return disparity_m_; }
+
   virtual cv::Mat confidence() const { return confidence8_m_; }
 
  protected:
@@ -65,7 +67,14 @@ class VPIStereoMatcher {
   VPIStream stream_;
 
   // Scaled images (equal to {left|right}_image_ if not scaling)
-  VPIImage left_blurred_, right_blurred_, left_scaled_, right_scaled_;
+  VPIImage left_blurred_, right_blurred_;
+
+  // If disparity_padding == true, these are the padded images, and left_scaled
+  // and right_scaled are ROIs into these images If disparity_padding == false,
+  // left_scaled and right_scaled are the same as these images
+  VPIImage left_for_disparity_, right_for_disparity_;
+  VPIImage left_scaled_, right_scaled_;
+
   VPIImage confidence_;
 
   // Output images, these wrap Mats
