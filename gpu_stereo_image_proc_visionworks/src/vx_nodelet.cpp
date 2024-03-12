@@ -56,6 +56,7 @@
 
 #include "code_timing/code_timing.h"
 #include "gpu_stereo_image_proc/nodelet_base.h"
+#include "gpu_stereo_image_proc/ros_topic_names.h"
 #include "gpu_stereo_image_proc/visionworks/vx_bidirectional_stereo_matcher.h"
 #include "gpu_stereo_image_proc/visionworks/vx_stereo_matcher.h"
 #include "gpu_stereo_image_proc_visionworks/VXSGBMConfig.h"
@@ -64,6 +65,11 @@ namespace gpu_stereo_image_proc_visionworks {
 using namespace sensor_msgs;
 using namespace stereo_msgs;
 using namespace message_filters::sync_policies;
+
+using gpu_stereo_image_proc::RosTopic;
+using gpu_stereo_image_proc::RosTopicNameMap;
+using gpu_stereo_image_proc::RosTopicNameMap_V1;
+using gpu_stereo_image_proc::RosTopicNameMap_V2;
 
 class VXDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   // Publications
@@ -74,7 +80,7 @@ class VXDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   ros::Publisher debug_raw_disparity_, debug_disparity_mask_;
 
   ros::Publisher scaled_left_camera_info_, scaled_right_camera_info_;
-  ros::Publisher scaled_left_rect_;
+  ros::Publisher scaled_left_rect_, scaled_right_rect_;
 
   // Dynamic reconfigure
   typedef VXSGBMConfig Config;
@@ -132,18 +138,6 @@ void VXDisparityNodelet::onInit() {
   reconfigure_server_.reset(new ReconfigureServer(private_nh));
   reconfigure_server_->setCallback(f);
 
-  // These ... don't work
-  // bilateral_nh_ = ros::NodeHandle(nh, "~bilateral_filter");
-  // dyncfg_bilateral_filter_.reset(new
-  // BilateralReconfigureServer(bilateral_nh_));
-  // dyncfg_bilateral_filter_->setCallback(
-  //     boost::bind(&VXDisparityNodelet::bilateralConfigCb, this, _1, _2));
-
-  // wls_nh_ = ros::NodeHandle(nh, "~wls_filter");
-  // dyncfg_wls_filter_.reset(new WLSReconfigureServer(wls_nh_));
-  // dyncfg_wls_filter_->setCallback(
-  //     boost::bind(&VXDisparityNodelet::wlsConfigCb, this, _1, _2));
-
   code_timing_.reset(new code_timing::CodeTiming(nh));
 
   // Monitor whether anyone is subscribed to the output
@@ -155,35 +149,55 @@ void VXDisparityNodelet::onInit() {
   {
     boost::lock_guard<boost::mutex> lock(connect_mutex_);
 
-    pub_disparity_ =
-        nh.advertise<DisparityImage>("disparity", 1, connect_cb, connect_cb);
+    std::string which_topic_names;
+    private_nh.param("ros_topics_version", which_topic_names,
+                     std::string("v2"));
 
-    pub_depth_ = nh.advertise<Image>("depth", 1, connect_cb, connect_cb);
+    RosTopicNameMap topic_names;
+    if (which_topic_names == "v1") {
+      NODELET_INFO("Using \"v1\" ROS topic names");
+      topic_names = RosTopicNameMap_V1;
+    } else {
+      NODELET_INFO("Using \"v2\" ROS topic names");
+      topic_names = RosTopicNameMap_V2;
+    }
+
+    pub_disparity_ = nh.advertise<DisparityImage>(
+        topic_names[RosTopic::DownsampledDisparity], 1, connect_cb, connect_cb);
+
+    pub_depth_ = nh.advertise<Image>(topic_names[RosTopic::DownsampledDepth], 1,
+                                     connect_cb, connect_cb);
 
     pub_confidence_ =
-        nh.advertise<Image>("confidence", 1, connect_cb, connect_cb);
+        nh.advertise<Image>(topic_names[RosTopic::DownsampledConfidence], 1,
+                            connect_cb, connect_cb);
 
     private_nh.param("debug", debug_topics_, false);
     if (debug_topics_) {
       ROS_INFO("Publishing debug topics");
-      debug_lr_disparity_ =
-          nh.advertise<DisparityImage>("debug/lr_disparity", 1);
+      debug_lr_disparity_ = nh.advertise<DisparityImage>(
+          topic_names[RosTopic::DownsampledDebugLRDisparity], 1);
 
-      debug_rl_disparity_ =
-          nh.advertise<DisparityImage>("debug/rl_disparity", 1);
+      debug_rl_disparity_ = nh.advertise<DisparityImage>(
+          topic_names[RosTopic::DownsampledDebugRLDisparity], 1);
 
       debug_raw_disparity_ = nh.advertise<DisparityImage>(
-          "debug/raw_disparity", 1, connect_cb, connect_cb);
+          topic_names[RosTopic::DownsampledDebugRawDisparity], 1, connect_cb,
+          connect_cb);
 
-      debug_disparity_mask_ = nh.advertise<Image>("debug/confidence_mask", 1);
+      debug_disparity_mask_ = nh.advertise<Image>(
+          topic_names[RosTopic::DownsampledDebugConfidenceMask], 1);
     }
 
-    scaled_left_camera_info_ =
-        nh.advertise<CameraInfo>("left/scaled_camera_info", 1);
-    scaled_right_camera_info_ =
-        nh.advertise<CameraInfo>("right/scaled_camera_info", 1);
+    scaled_left_camera_info_ = nh.advertise<CameraInfo>(
+        topic_names[RosTopic::DownsampledCameraInfoLeft], 1);
+    scaled_right_camera_info_ = nh.advertise<CameraInfo>(
+        topic_names[RosTopic::DownsampledCameraInfoRight], 1);
 
-    scaled_left_rect_ = nh.advertise<Image>("left/scaled_image_rect", 1);
+    scaled_left_rect_ =
+        nh.advertise<Image>(topic_names[RosTopic::DownsampledRectifiedLeft], 1);
+    scaled_right_rect_ = nh.advertise<Image>(
+        topic_names[RosTopic::DownsampledRectifiedRight], 1);
   }
 }
 
