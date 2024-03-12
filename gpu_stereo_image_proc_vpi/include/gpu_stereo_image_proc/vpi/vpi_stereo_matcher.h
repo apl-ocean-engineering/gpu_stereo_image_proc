@@ -54,8 +54,8 @@ class VPIStereoMatcher {
 
   const VPIStereoMatcherParams &params() const { return params_; }
 
-  // cv::Mat scaledLeftRect() const { return vxImageToMatWrapper(left_scaled_);
-  // }
+  cv::Mat scaledLeftRect();
+  cv::Mat scaledRightRect();
 
   // n.b. this is direct access to the data in disparity_,  **not** a copy
   virtual cv::Mat disparity() const { return disparity_m_; }
@@ -76,10 +76,10 @@ class VPIStereoMatcher {
   VPIImage left_scaled_, right_scaled_;
 
   VPIImage confidence_;
+  VPIImage confidence8_, disparity_;
 
   // Output images, these wrap Mats
-  cv::Mat confidence8_m_, disparity_m_;
-  VPIImage confidence8_, disparity_;
+  cv::Mat confidence8_m_, disparity_m_, left_scaled_m_, right_scaled_m_;
 
   VPIStereoMatcherParams params_;
 

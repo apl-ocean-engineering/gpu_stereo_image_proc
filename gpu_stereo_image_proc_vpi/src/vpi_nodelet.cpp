@@ -255,45 +255,14 @@ void VPIDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
 
   cv::Mat disparityS16 = stereo_matcher_->disparity();
 
-  double mmin, mmax;
-  cv::minMaxLoc(disparityS16, &mmin, &mmax);
-  NODELET_INFO_STREAM("Disparity min " << mmin << "; " << mmax);
+  // double mmin, mmax;
+  // cv::minMaxLoc(disparityS16, &mmin, &mmax);
+  // NODELET_INFO_STREAM("Disparity min " << mmin << "; " << mmax);
 
   // if (debug_topics_) {
   //   DisparityImageGenerator raw_dg(l_image_msg, disparityS16, scaled_model,
   //                                  min_disparity, max_disparity, border);
   //   debug_raw_disparity_.publish(raw_dg.getDisparity());
-  // }
-
-  // if (std::shared_ptr<VXBidirectionalStereoMatcher> bm =
-  //         std::dynamic_pointer_cast<VXBidirectionalStereoMatcher>(
-  //             stereo_matcher_)) {
-  //   // Publish confidence
-  //   cv::Mat confidence = bm->confidenceMat();
-  //   cv_bridge::CvImage confidence_bridge(l_image_msg->header, "32FC1",
-  //                                        confidence);
-  //   pub_confidence_.publish(confidence_bridge.toImageMsg());
-
-  //   if (confidence_threshold_ > 0) {
-  //     // Since we use the mask to **discard** disparities with low
-  //     confidence,
-  //     // use CMP_LT to **set** pixels in the mask which have a confidence
-  //     // below the threshold.
-  //     cv::Mat confidence_mask(confidence.size(), CV_8UC1, cv::Scalar(0));
-  //     cv::compare(confidence, confidence_threshold_, confidence_mask,
-  //                 cv::CMP_LT);
-
-  //     if (debug_topics_) {
-  //       cv_bridge::CvImage disparity_mask_bridge(l_image_msg->header,
-  //       "mono8",
-  //                                                confidence_mask);
-  //       debug_disparity_mask_.publish(disparity_mask_bridge.toImageMsg());
-  //     }
-
-  //     // Erase disparity values with low confidence
-  //     const int masked_disparity_value = min_disparity;
-  //     disparityS16.setTo(masked_disparity_value, confidence_mask);
-  //   }
   // }
 
   // cv::Mat confidence = stereo_matcher_->confidence();
@@ -312,22 +281,16 @@ void VPIDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
   scaled_left_camera_info_.publish(scaled_camera_info_l);
   scaled_right_camera_info_.publish(scaled_camera_info_r);
 
-  // cv_bridge::CvImage left_rect_msg_bridge(l_image_msg->header, "mono8",
-  //                                         stereo_matcher_->scaledLeftRect());
-  // scaled_left_rect_.publish(left_rect_msg_bridge.toImageMsg());
-
-  // if (debug_topics_) {
-  //   // This results in an copy of the mat, so only do it if necessary..
-  //   cv::Mat scaledDisparity = stereo_matcher_->unfilteredDisparityMat();
-  //   if (!scaledDisparity.empty()) {
-  //     DisparityImageGenerator lr_disp_dg(l_image_msg, scaledDisparity,
-  //                                        scaled_model, min_disparity,
-  //                                        max_disparity, border);
-  //     DisparityImagePtr lr_disp_msg = lr_disp_dg.getDisparity();
-  //     debug_lr_disparity_.publish(lr_disp_msg);
-  //   }
-
-  // }
+  {
+    cv_bridge::CvImage left_rect_msg_bridge(l_image_msg->header, "mono8",
+                                            stereo_matcher_->scaledLeftRect());
+    scaled_left_rect_.publish(left_rect_msg_bridge.toImageMsg());
+  }
+  {
+    cv_bridge::CvImage right_rect_msg_bridge(
+        r_image_msg->header, "mono8", stereo_matcher_->scaledRightRect());
+    scaled_right_rect_.publish(right_rect_msg_bridge.toImageMsg());
+  }
 }
 
 void VPIDisparityNodelet::configCb(Config &config, uint32_t level) {

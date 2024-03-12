@@ -66,6 +66,8 @@ class VXStereoMatcher {
 
   cv::Mat scaledLeftRect() const { return vxImageToMatWrapper(left_scaled_); }
 
+  cv::Mat scaledRightRect() const { return vxImageToMatWrapper(right_scaled_); }
+
   virtual cv::Mat disparity() const { return vxImageToMatWrapper(disparity_); }
 
  protected:

@@ -115,7 +115,7 @@ VPIStereoMatcher::VPIStereoMatcher(const VPIStereoMatcherParams &params)
   VPI_CHECK_STATUS(vpiImageCreate(disparity_sz.width, disparity_sz.height,
                                   VPI_IMAGE_FORMAT_U16, 0, &confidence_));
 
-  ROS_INFO_STREAM("Max disparity: " << params_.max_disparity);
+  // ROS_INFO_STREAM("Max disparity: " << params_.max_disparity);
   VPIStereoDisparityEstimatorCreationParams create_params;
   create_params.maxDisparity = params_.max_disparity;
 
@@ -244,6 +244,23 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
   //   pCudaBilFilter->apply(disparity_map.getGpuMat(), left_map.getGpuMat(),
   //                         g_filtered_);
   // }
+}
+
+cv::Mat VPIStereoMatcher::scaledLeftRect() {
+  VPIImageData left_data;
+  vpiImageLock(left_scaled_, VPI_LOCK_READ, &left_data);
+  vpiImageDataExportOpenCVMat(left_data, &left_scaled_m_);
+  vpiImageUnlock(left_scaled_);
+  return left_scaled_m_;
+}
+
+cv::Mat VPIStereoMatcher::scaledRightRect() {
+  VPIImageData right_data;
+  vpiImageLock(right_scaled_, VPI_LOCK_READ, &right_data);
+  vpiImageDataExportOpenCVMat(right_data, &right_scaled_m_);
+  vpiImageUnlock(right_scaled_);
+
+  return right_scaled_m_;
 }
 
 }  // namespace gpu_stereo_image_proc_vpi
