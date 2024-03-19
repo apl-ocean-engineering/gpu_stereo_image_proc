@@ -32,13 +32,12 @@
 #pragma once
 
 #include <ros/ros.h>
-
-#include <opencv2/core.hpp>
-// #include <opencv2/core/cuda.hpp>
-
 #include <vpi/Image.h>
 #include <vpi/Stream.h>
 #include <vpi/algo/StereoDisparity.h>
+
+#include <opencv2/core.hpp>
+#include <opencv2/core/cuda.hpp>
 
 #include "gpu_stereo_image_proc/vpi/vpi_stereo_matcher_params.h"
 
@@ -65,10 +64,17 @@ class VPIStereoMatcher {
   VPIPayload stereo_payload_;
   VPIStream stream_;
 
+  // These are "real" VPIImages (allocated by VPI)
   VPIImage left_blurred_, right_blurred_;
+
   VPIImage left_scaled_, right_scaled_;
 
-  VPIImage disparity_, disparity_filtered_, disparity_output_, confidence_;
+  // These are VPI wrappers around gpuMats
+  cv::cuda::GpuMat disparity_gpu_mat_, disparity_filtered_gpu_mat_,
+      disparity_output_gpu_mat_, confidence_gpu_mat_, left_scaled_gpu_mat_,
+      right_scaled_gpu_mat_;
+
+  VPIImage disparity_, disparity_filtered_, confidence_;
 
   VPIStereoMatcherParams params_;
 

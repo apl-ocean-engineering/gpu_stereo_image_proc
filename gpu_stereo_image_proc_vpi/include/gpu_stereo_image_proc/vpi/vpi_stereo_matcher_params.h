@@ -80,7 +80,7 @@ struct VPIStereoMatcherParams {
     ROS_INFO("~~ VPI Matcher ~~");
     ROS_INFO("original img size : w %d, h %d", image_size().width,
              image_size().height);
-    ROS_INFO("       Downsample : %d", downsample());
+    ROS_INFO("       Downsample : x%d", downsample());
     ROS_INFO(" Confidence threshold : %d", confidence_threshold);
     ROS_INFO("               P1 : %f", p1);
     ROS_INFO("               P2 : %f", p2);
