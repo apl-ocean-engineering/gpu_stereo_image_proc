@@ -44,7 +44,7 @@ endif()
 # See note in image_proc/CMakeLists.txt
 add_definitions(-DOPENCV_TRAITS_ENABLE_DEPRECATED)
 
-include_directories(${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${vpi_INCLUDE_DIRS})
+include_directories(${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${vpi_INCLUDE_DIRS} ${CUDA_INCLUDE_DIRS})
 
 #  Library (and nodelet)
 set(VPI_NODELET_NAME vpi_stereo_image_proc)

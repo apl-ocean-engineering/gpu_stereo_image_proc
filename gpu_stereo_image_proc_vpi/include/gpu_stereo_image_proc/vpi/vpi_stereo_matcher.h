@@ -65,8 +65,15 @@ class VPIStereoMatcher {
   VPIPayload stereo_payload_;
   VPIStream stream_;
 
+  // These are "real" VPIImages (allocated by VPI)
   VPIImage left_blurred_, right_blurred_;
+
   VPIImage left_scaled_, right_scaled_;
+
+  // These are VPI wrappers around gpuMats
+  cv::GpuMat disparity_gpu_mat_, disparity_filtered_gpu_mat_,
+      disparity_output_gpu_mat_, confidence_gpu_mat_, left_scaled_gpu_mat_,
+      right_scaled_gpu_mat_;
 
   VPIImage disparity_, disparity_filtered_, disparity_output_, confidence_;
 

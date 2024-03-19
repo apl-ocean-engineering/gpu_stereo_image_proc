@@ -33,6 +33,7 @@
 #include "gpu_stereo_image_proc/vpi/vpi_stereo_matcher.h"
 
 #include <ros/ros.h>
+#include <vpi/CUDAInterop.h>
 #include <vpi/ImageFormat.h>
 #include <vpi/Stream.h>
 #include <vpi/algo/ConvertImageFormat.h>
@@ -49,50 +50,93 @@
 
 namespace gpu_stereo_image_proc_vpi {
 
+VPIStatus makeGpuMatFPIWrapper(cv::Mat &mat, cv::Size &sz,
+                               int cvmode VPIImageFormat fmt, VPIImage *img) {
+  mat = cv::GpuMat(sz, cvmode);
+
+  // Sample code for wrapper a VPIImage around contents of a cvGpuImage
+  // +        cv::cuda::GpuMat cvGpuImage(cvImage);
+  // +
+  // +        VPIImageData imgData;
+  // +        memset(&imgData, 0, sizeof(imgData));
+  // +        imgData.format               = VPI_IMAGE_FORMAT_U8;
+  // +        imgData.numPlanes            = 1;
+  // +        imgData.planes[0].width      = cvGpuImage.cols;
+  // +        imgData.planes[0].height     = cvGpuImage.rows;
+  // +        imgData.planes[0].pitchBytes = cvGpuImage.step;
+  // +        imgData.planes[0].data       = cvGpuImage.data;
+  // +        CHECK_STATUS(vpiImageCreateCUDAMemWrapper(&imgData, 0, &image));
+
+  VPIImageData imgData;
+  memset(&imgData, 0, sizeof(imgData));
+  imgData.format = fmt;
+  imgData.numPlanes = 1;
+  imgData.planes[0].width = mat.cols;
+  imgData.planes[0].height = mat.rows;
+  imgData.planes[0].pitchBytes = mat.step;
+  imgData.planes[0].data = mat.data;
+  return vpiImageCreateCUDAMemWrapper(&imgData, 0, mat);
+}
+
 VPIStereoMatcher::VPIStereoMatcher(const VPIStereoMatcherParams &params)
     : params_(params) {
   // \todo ... fixed input type right now...
   VPIImageFormat input_format;  //= VPI_IMAGE_FORMAT_U8;
+  int cv_format;
   if (params_.image_type() == CV_16UC1) {
     ROS_INFO("Using 16-bit input images");
     input_format = VPI_IMAGE_FORMAT_U16;
+    cv_format = cv::CV_16UC1;
   } else {
     ROS_INFO("Using 8-bit input images");
     input_format = VPI_IMAGE_FORMAT_U8;
+    cv_format = cv::CV_8UC1
   }
 
   const cv::Size full_sz = params_.image_size();
   const cv::Size scaled_sz = params_.scaled_image_size();
   // const cv::Size disparity_sz = params_.disparity_image_size();
 
-  VPI_CHECK_STATUS(vpiImageCreate(full_sz.width, full_sz.height, input_format,
-                                  0, &left_blurred_));
+  const int backend = VPI_BACKEND_CUDA;
 
   VPI_CHECK_STATUS(vpiImageCreate(full_sz.width, full_sz.height, input_format,
-                                  0, &right_blurred_));
+                                  backend, &left_blurred_));
+
+  VPI_CHECK_STATUS(vpiImageCreate(full_sz.width, full_sz.height, input_format,
+                                  backend, &right_blurred_));
 
   ROS_INFO_STREAM(" Input image: " << full_sz.width << " x " << full_sz.height);
 
   ROS_INFO_STREAM("Scaled image: " << scaled_sz.width << " x "
                                    << scaled_sz.height);
 
-  VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
-                                  input_format, 0, &left_scaled_));
+  VPI_CHECK_STATUS(makeGpuMatFPIWrapper(
+      left_scaled_gpu_mat_, cv::Size(scaled_sz.width, scaled_sz.height),
+      cv_format, input_format, left_scaled_));
 
-  VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
-                                  input_format, 0, &right_scaled_));
+  VPI_CHECK_STATUS(makeGpuMatFPIWrapper(
+      right_scaled_gpu_mat_, cv::Size(scaled_sz.width, scaled_sz.height),
+      cv_format, input_format, right_scaled_));
 
-  // Outputs
+  // VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
+  //                                 input_format, backend, &left_scaled_));
 
-  VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
-                                  VPI_IMAGE_FORMAT_S16, 0, &disparity_));
+  // VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
+  //                                 input_format, backend, &right_scaled_));
 
-  VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
-                                  VPI_IMAGE_FORMAT_U16, 0,
-                                  &disparity_filtered_));
+  // // Outputs
 
-  VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
-                                  VPI_IMAGE_FORMAT_U16, 0, &confidence_));
+  // VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
+  //                                 VPI_IMAGE_FORMAT_S16, backend,
+  //                                 &disparity_));
+
+  // VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
+  //                                 VPI_IMAGE_FORMAT_S16, backend,
+  //                                 &disparity_filtered_));
+
+  // VPI_CHECK_STATUS(vpiImageCreate(scaled_sz.width, scaled_sz.height,
+  //                                 VPI_IMAGE_FORMAT_U16, backend,
+  //                                 &confidence_));
 
   // ROS_INFO_STREAM("Max disparity: " << params_.max_disparity);
   VPIStereoDisparityEstimatorCreationParams create_params;
@@ -100,10 +144,10 @@ VPIStereoMatcher::VPIStereoMatcher(const VPIStereoMatcherParams &params)
   create_params.maxDisparity = params_.max_disparity;
 
   VPI_CHECK_STATUS(vpiCreateStereoDisparityEstimator(
-      VPI_BACKEND_CUDA, scaled_sz.width, scaled_sz.height, input_format,
-      &create_params, &stereo_payload_));
+      backend, scaled_sz.width, scaled_sz.height, input_format, &create_params,
+      &stereo_payload_));
 
-  VPI_CHECK_STATUS(vpiStreamCreate(VPI_BACKEND_CUDA, &stream_));
+  VPI_CHECK_STATUS(vpiStreamCreate(backend, &stream_));
 }
 
 VPIStereoMatcher::~VPIStereoMatcher() {
@@ -122,31 +166,33 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
                                cv::InputArray right_input) {
   VPIImage left, right;
 
+  const int backend = VPI_BACKEND_CUDA;
+
   vpiImageUnlock(disparity_);
 
   VPI_CHECK_STATUS(
-      vpiImageCreateWrapperOpenCVMat(left_input.getMat(), 0, &left));
+      vpiImageCreateWrapperOpenCVMat(left_input.getMat(), backend, &left));
   VPI_CHECK_STATUS(
-      vpiImageCreateWrapperOpenCVMat(right_input.getMat(), 0, &right));
+      vpiImageCreateWrapperOpenCVMat(right_input.getMat(), backend, &right));
 
   const int gaussian_filter_size = 5;
   const float gaussian_filter_sigma = 1.7;
 
   // Blur the input images
   VPI_CHECK_STATUS(vpiSubmitGaussianFilter(
-      stream_, VPI_BACKEND_CUDA, left, left_blurred_, gaussian_filter_size,
+      stream_, backend, left, left_blurred_, gaussian_filter_size,
       gaussian_filter_size, gaussian_filter_sigma, gaussian_filter_sigma,
       VPI_BORDER_ZERO));
   VPI_CHECK_STATUS(vpiSubmitGaussianFilter(
-      stream_, VPI_BACKEND_CUDA, right, right_blurred_, gaussian_filter_size,
+      stream_, backend, right, right_blurred_, gaussian_filter_size,
       gaussian_filter_size, gaussian_filter_sigma, gaussian_filter_sigma,
       VPI_BORDER_ZERO));
 
   // Scale the input images
-  VPI_CHECK_STATUS(vpiSubmitRescale(stream_, VPI_BACKEND_CUDA, left_blurred_,
+  VPI_CHECK_STATUS(vpiSubmitRescale(stream_, backend, left_blurred_,
                                     left_scaled_, VPI_INTERP_CATMULL_ROM,
                                     VPI_BORDER_ZERO, 0));
-  VPI_CHECK_STATUS(vpiSubmitRescale(stream_, VPI_BACKEND_CUDA, right_blurred_,
+  VPI_CHECK_STATUS(vpiSubmitRescale(stream_, backend, right_blurred_,
                                     right_scaled_, VPI_INTERP_CATMULL_ROM,
                                     VPI_BORDER_ZERO, 0));
 
@@ -193,8 +239,8 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
   // In the current generation of VPI, confidence is not
   // calculated.  This is fixed in later versions.
   VPI_CHECK_STATUS(vpiSubmitStereoDisparityEstimator(
-      stream_, 0, stereo_payload_, left_scaled_, right_scaled_, disparity_,
-      confidence_, &stereo_params));
+      stream_, backend, stereo_payload_, left_scaled_, right_scaled_,
+      disparity_, confidence_, &stereo_params));
 
   VPI_CHECK_STATUS(vpiStreamSync(stream_));
 
@@ -206,37 +252,40 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
     // const int radius = 3;
     // const int iters = 1;
 
-    cv::Mat disp_export, disp_filtered_export, left_export;
-    VPIImageData disp_data, disp_filtered_data, disp_left_scaled;
+    // cv::Mat disp_export, disp_filtered_export, left_export;
 
-    VPI_CHECK_STATUS(vpiImageLockData(disparity_, VPI_LOCK_READ,
-                                      VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR,
-                                      &disp_data));
-    VPI_CHECK_STATUS(vpiImageDataExportOpenCVMat(disp_data, &disp_export));
+    // VPIImageData disp_data, disp_filtered_data, disp_left_scaled;
+    // VPI_CHECK_STATUS(vpiImageLockData(disparity_, VPI_LOCK_READ,
+    //                                   VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR,
+    //                                   &disp_data));
+    // VPI_CHECK_STATUS(vpiImageDataExportOpenCVMat(disp_data, &disp_export));
 
-    VPI_CHECK_STATUS(vpiImageLockData(disparity_filtered_, VPI_LOCK_READ_WRITE,
-                                      VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR,
-                                      &disp_filtered_data));
-    VPI_CHECK_STATUS(
-        vpiImageDataExportOpenCVMat(disp_filtered_data, &disp_filtered_export));
+    // VPI_CHECK_STATUS(vpiImageLockData(disparity_filtered_,
+    // VPI_LOCK_READ_WRITE,
+    //                                   VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR,
+    //                                   &disp_filtered_data));
+    // VPI_CHECK_STATUS(
+    //     vpiImageDataExportOpenCVMat(disp_filtered_data,
+    //     &disp_filtered_export));
 
-    VPI_CHECK_STATUS(vpiImageLockData(left_scaled_, VPI_LOCK_READ,
-                                      VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR,
-                                      &disp_left_scaled));
-    VPI_CHECK_STATUS(
-        vpiImageDataExportOpenCVMat(disp_left_scaled, &left_export));
+    // VPI_CHECK_STATUS(vpiImageLockData(left_scaled_, VPI_LOCK_READ,
+    //                                   VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR,
+    //                                   &disp_left_scaled));
+    // VPI_CHECK_STATUS(
+    //     vpiImageDataExportOpenCVMat(disp_left_scaled, &left_export));
 
-    cv::Ptr<cv::cuda::DisparityBilateralFilter> pCudaBilFilter =
-        cv::cuda::createDisparityBilateralFilter(
-            nDisp, params_.bilateral_filter_params.radius,
-            params_.bilateral_filter_params.num_iters);
+    // cv::Ptr<cv::cuda::DisparityBilateralFilter> pCudaBilFilter =
+    //     cv::cuda::createDisparityBilateralFilter(
+    //         nDisp, params_.bilateral_filter_params.radius,
+    //         params_.bilateral_filter_params.num_iters);
 
-    pCudaBilFilter->apply(disp_export, left_export, disp_filtered_export);
+    // pCudaBilFilter->apply(disp_export, left_export, disp_filtered_export);
 
-    vpiImageUnlock(disparity_);
-    vpiImageUnlock(disparity_filtered_);
+    // vpiImageUnlock(disparity_);
+    // vpiImageUnlock(disparity_filtered_);
+    // vpiImageUnlock(left_scaled_);
 
-    disparity_output_ = disparity_filtered_;
+    disparity_output_ = disparity_;  // filtered_;
   } else {
     disparity_output_ = disparity_;
   }
