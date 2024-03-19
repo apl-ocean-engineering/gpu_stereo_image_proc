@@ -54,19 +54,6 @@ VPIStatus makeGpuMatFPIWrapper(cv::cuda::GpuMat &mat, const cv::Size &sz,
                                int cvmode, VPIImageFormat fmt, VPIImage *img) {
   mat.create(sz, cvmode);
 
-  // Sample code for wrapper a VPIImage around contents of a cvGpuImage
-  // +        cv::cuda::GpuMat cvGpuImage(cvImage);
-  // +
-  // +        VPIImageData imgData;
-  // +        memset(&imgData, 0, sizeof(imgData));
-  // +        imgData.format               = VPI_IMAGE_FORMAT_U8;
-  // +        imgData.numPlanes            = 1;
-  // +        imgData.planes[0].width      = cvGpuImage.cols;
-  // +        imgData.planes[0].height     = cvGpuImage.rows;
-  // +        imgData.planes[0].pitchBytes = cvGpuImage.step;
-  // +        imgData.planes[0].data       = cvGpuImage.data;
-  // +        CHECK_STATUS(vpiImageCreateCUDAMemWrapper(&imgData, 0, &image));
-
   VPIImageData imgData;
   memset(&imgData, 0, sizeof(imgData));
   imgData.bufferType = VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR;
@@ -192,26 +179,6 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
                                     right_scaled_, VPI_INTERP_CATMULL_ROM,
                                     VPI_BORDER_ZERO, 0));
 
-  //   int32_t stereo_width, stereo_height;
-  //   VPIImageFormat stereo_format;
-  //   VPI_CHECK_STATUS(vpiImageGetSize( left_scaled_, &stereo_width,
-  //   &stereo_height )); VPI_CHECK_STATUS(vpiImageGetFormat(left_scaled_,
-  //   &stereo_format));
-  // ROS_INFO_STREAM_THROTTLE(1, "     Left is " << stereo_width << " x " <<
-  // stereo_height << " ; format " << vpiImageFormatGetName(stereo_format));
-
-  //   VPI_CHECK_STATUS(vpiImageGetSize( right_scaled_, &stereo_width,
-  //   &stereo_height )); VPI_CHECK_STATUS(vpiImageGetFormat(right_scaled_,
-  //   &stereo_format));
-  // ROS_INFO_STREAM_THROTTLE(1, "    Right is " << stereo_width << " x " <<
-  // stereo_height << " ; format " << vpiImageFormatGetName(stereo_format));
-
-  //   VPI_CHECK_STATUS(vpiImageGetSize( disparity_, &stereo_width,
-  //   &stereo_height )); VPI_CHECK_STATUS(vpiImageGetFormat(disparity_,
-  //   &stereo_format));
-  // ROS_INFO_STREAM_THROTTLE(1, "Disparity is " << stereo_width << " x " <<
-  // stereo_height << " ; format " << vpiImageFormatGetName(stereo_format));
-
   VPIStereoDisparityEstimatorParams stereo_params;
   vpiInitStereoDisparityEstimatorParams(&stereo_params);
   stereo_params.confidenceType = VPI_STEREO_CONFIDENCE_ABSOLUTE;
@@ -233,30 +200,6 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
 
   if (params_.filtering == VPIStereoMatcherParams::Filtering_Bilateral) {
     const int nDisp = (params_.max_disparity - params_.min_disparity);
-    // const int radius = 3;
-    // const int iters = 1;
-
-    // cv::Mat disp_export, disp_filtered_export, left_export;
-
-    // VPIImageData disp_data, disp_filtered_data, disp_left_scaled;
-    // VPI_CHECK_STATUS(vpiImageLockData(disparity_, VPI_LOCK_READ,
-    //                                   VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR,
-    //                                   &disp_data));
-    // VPI_CHECK_STATUS(vpiImageDataExportOpenCVMat(disp_data, &disp_export));
-
-    // VPI_CHECK_STATUS(vpiImageLockData(disparity_filtered_,
-    // VPI_LOCK_READ_WRITE,
-    //                                   VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR,
-    //                                   &disp_filtered_data));
-    // VPI_CHECK_STATUS(
-    //     vpiImageDataExportOpenCVMat(disp_filtered_data,
-    //     &disp_filtered_export));
-
-    // VPI_CHECK_STATUS(vpiImageLockData(left_scaled_, VPI_LOCK_READ,
-    //                                   VPI_IMAGE_BUFFER_CUDA_PITCH_LINEAR,
-    //                                   &disp_left_scaled));
-    // VPI_CHECK_STATUS(
-    //     vpiImageDataExportOpenCVMat(disp_left_scaled, &left_export));
 
     cv::Ptr<cv::cuda::DisparityBilateralFilter> pCudaBilFilter =
         cv::cuda::createDisparityBilateralFilter(
@@ -266,11 +209,7 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
     pCudaBilFilter->apply(disparity_gpu_mat_, left_scaled_gpu_mat_,
                           disparity_filtered_gpu_mat_);
 
-    // vpiImageUnlock(disparity_);
-    // vpiImageUnlock(disparity_filtered_);
-    // vpiImageUnlock(left_scaled_);
-
-  } else {
+    // Output is now in disparity_filtered_ / disparity_filtered_gpu_mat_
   }
 }
 
@@ -282,11 +221,6 @@ cv::Mat VPIStereoMatcher::confidence() {
 
 cv::Mat VPIStereoMatcher::disparity() {
   cv::Mat disp_out;
-
-  //   double mmin, mmax;
-  //   cv::minMaxLoc(disp_export, &mmin, &mmax);
-  //   ROS_INFO_STREAM_THROTTLE(1, "Disparity min " << mmin << "; max = " <<
-  //   mmax);
 
   if (params_.filtering == VPIStereoMatcherParams::Filtering_Bilateral) {
     disparity_filtered_gpu_mat_.download(disp_out);
@@ -304,21 +238,8 @@ cv::Mat VPIStereoMatcher::scaledLeftRect() {
 }
 
 cv::Mat VPIStereoMatcher::scaledRightRect() {
-  // VPIImageData right_data;
-  // VPI_CHECK_STATUS(vpiImageLockData(right_scaled_, VPI_LOCK_READ,
-  //                                   VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR,
-  //                                   &right_data));
-
-  // cv::Mat right_export, right_out;
-  // VPI_CHECK_STATUS(vpiImageDataExportOpenCVMat(right_data, &right_export));
-
-  // right_export.copyTo(right_out);
-  // vpiImageUnlock(right_scaled_);
-
   cv::Mat right_out;
   right_scaled_gpu_mat_.download(right_out);
-  return right_out;
-
   return right_out;
 }
 

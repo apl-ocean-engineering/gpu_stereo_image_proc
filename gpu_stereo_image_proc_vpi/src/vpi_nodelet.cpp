@@ -82,7 +82,9 @@ class VPIDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
 
   // Publications
   ros::Publisher pub_disparity_, debug_lr_disparity_, debug_rl_disparity_;
-  ros::Publisher debug_raw_disparity_, debug_disparity_mask_, pub_confidence_;
+  ros::Publisher debug_raw_disparity_;
+  // ros::Publisher pub_confidence_;  Current version of VPI doesn't calculate
+  // confidence
   ros::Publisher pub_depth_;
 
   ros::Publisher scaled_left_camera_info_, scaled_right_camera_info_;
@@ -107,7 +109,6 @@ class VPIDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
 
   bool hasSubscribers() const override {
     return (pub_disparity_.getNumSubscribers() > 0) ||
-           (pub_confidence_.getNumSubscribers() > 0) ||
            (pub_depth_.getNumSubscribers() > 0);
   }
 
@@ -119,9 +120,6 @@ class VPIDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
                      const CameraInfoConstPtr &r_info_msg) override;
 
   void configCb(Config &config, uint32_t level);
-
-  // void bilateralConfigCb(BilateralFilterConfig &config, uint32_t level);
-  // void wlsConfigCb(WLSFilterConfig &config, uint32_t level);
 
   bool update_stereo_matcher();
 
@@ -174,9 +172,9 @@ void VPIDisparityNodelet::onInit() {
     pub_depth_ = nh.advertise<Image>(topic_names[RosTopic::DownsampledDepth], 1,
                                      connect_cb, connect_cb);
 
-    pub_confidence_ =
-        nh.advertise<Image>(topic_names[RosTopic::DownsampledConfidence], 1,
-                            connect_cb, connect_cb);
+    // pub_confidence_ =
+    //     nh.advertise<Image>(topic_names[RosTopic::DownsampledConfidence], 1,
+    //                         connect_cb, connect_cb);
 
     private_nh.param("debug", debug_topics_, false);
     if (debug_topics_) {
@@ -190,9 +188,6 @@ void VPIDisparityNodelet::onInit() {
       debug_raw_disparity_ = nh.advertise<DisparityImage>(
           topic_names[RosTopic::DownsampledDebugRawDisparity], 1, connect_cb,
           connect_cb);
-
-      debug_disparity_mask_ = nh.advertise<Image>(
-          topic_names[RosTopic::DownsampledDebugConfidenceMask], 1);
     }
 
     scaled_left_camera_info_ = nh.advertise<CameraInfo>(
@@ -256,20 +251,11 @@ void VPIDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
 
   cv::Mat disparityS16 = stereo_matcher_->disparity();
 
-  // double mmin, mmax;
-  // cv::minMaxLoc(disparityS16, &mmin, &mmax);
-  // NODELET_INFO_STREAM("Disparity min " << mmin << "; " << mmax);
-
   // if (debug_topics_) {
   //   DisparityImageGenerator raw_dg(l_image_msg, disparityS16, scaled_model,
   //                                  min_disparity, max_disparity, border);
   //   debug_raw_disparity_.publish(raw_dg.getDisparity());
   // }
-
-  // cv::Mat confidence = stereo_matcher_->confidence();
-  // cv_bridge::CvImage confidence_bridge(l_image_msg->header, "8UC1",
-  //                                      confidence);
-  // pub_confidence_.publish(confidence_bridge.toImageMsg());
 
   DisparityImageGenerator dg(scaled_model, min_disparity, max_disparity, 0);
 
@@ -327,7 +313,9 @@ void VPIDisparityNodelet::configCb(Config &config, uint32_t level) {
   params_.bilateral_filter_params.radius = config.radius;
   params_.bilateral_filter_params.num_iters = config.num_iters;
 
-  // As of OpenCV 4.0 these aren't actually exposed through the OpenCV API
+  // As of OpenCV 4.0 these aren't actually exposed through the OpenCV Factory
+  //  (though they do exist in the resulting class)
+  //
   // params_.bilateral_filter_params.sigma_range = config.sigma_range;
   // params_.bilateral_filter_params.max_disc_threshold =
   //     config.max_disc_threshold;
@@ -347,6 +335,7 @@ bool VPIDisparityNodelet::update_stereo_matcher() {
 
   params_.dump();
   ROS_WARN("Creating new stereo_matcher");
+
   // Explicitly destroy the previous version first to release
   // its CUDA resources
   stereo_matcher_.reset();
