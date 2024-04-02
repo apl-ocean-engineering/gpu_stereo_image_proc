@@ -53,7 +53,10 @@ DisparityImageResult::DisparityImageResult(
   cv::compare(dmat, min_disparity, bad_disparity_mask_, cv::CMP_LT);
 
   // Explicitly set those disparities to bad_disparity_value
-  const float bad_disparity_value = 0.0;
+  const float bad_disparity_value = std::numeric_limits<float>::infinity();
+  dmat.setTo(bad_disparity_value, bad_disparity_mask_);
+
+  cv::compare(dmat, max_disparity, bad_disparity_mask_, cv::CMP_GT);
   dmat.setTo(bad_disparity_value, bad_disparity_mask_);
 
   const int left = max_disparity + border - 1;
@@ -63,6 +66,17 @@ DisparityImageResult::DisparityImageResult(
   const int top = border;
   const int bottom = disparity->image.height - 1 - border;
   cv::Rect valid_window(left, top, right - left, bottom - top);
+
+  // Fill the border as well
+  bad_disparity_mask_.setTo(1);
+  cv::Mat good_roi(
+      bad_disparity_mask_,
+      cv::Rect(3 * border, border, disparity->image.width - 4 * border,
+               disparity->image.height - 2 * border));
+  good_roi.setTo(0);
+  dmat.setTo(bad_disparity_value,
+             bad_disparity_mask_);  /// \todo{These three mask fills could
+                                    /// actually be combined?}
 
   disparity->valid_window.x_offset = valid_window.x;
   disparity->valid_window.y_offset = valid_window.y;

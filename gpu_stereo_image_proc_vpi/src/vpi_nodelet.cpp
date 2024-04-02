@@ -88,6 +88,8 @@ class VPIDisparityNodelet : public gpu_stereo_image_proc::DisparityNodeletBase {
   ros::Publisher pub_depth_;
 
   ros::Publisher scaled_left_camera_info_, scaled_right_camera_info_;
+
+  //
   ros::Publisher scaled_left_rect_, scaled_right_rect_;
 
   // Dynamic reconfigure
@@ -251,13 +253,15 @@ void VPIDisparityNodelet::imageCallback(const ImageConstPtr &l_image_msg,
 
   cv::Mat disparityS16 = stereo_matcher_->disparity();
 
+  //
+
   // if (debug_topics_) {
   //   DisparityImageGenerator raw_dg(l_image_msg, disparityS16, scaled_model,
   //                                  min_disparity, max_disparity, border);
   //   debug_raw_disparity_.publish(raw_dg.getDisparity());
   // }
 
-  DisparityImageGenerator dg(scaled_model, min_disparity, max_disparity, 0);
+  DisparityImageGenerator dg(scaled_model, min_disparity, max_disparity, 5);
 
   auto dgr(dg.generate(l_image_msg, disparityS16));
 
