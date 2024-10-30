@@ -70,9 +70,9 @@ class VPIStereoMatcher {
   VPIImage left_scaled_, right_scaled_;
 
   // These are VPI wrappers around gpuMats
-  cv::cuda::GpuMat disparity_gpu_mat_, disparity_filtered_gpu_mat_,
-      disparity_output_gpu_mat_, confidence_gpu_mat_, left_scaled_gpu_mat_,
-      right_scaled_gpu_mat_;
+  // VPIImageBuffer disparity_gpu_mat_, disparity_filtered_gpu_mat_,
+  //    disparity_output_gpu_mat_, confidence_gpu_mat_, left_scaled_gpu_mat_,
+  //    right_scaled_gpu_mat_;
 
   VPIImage disparity_, disparity_filtered_, confidence_;
 
