@@ -28,6 +28,8 @@ DisparityImageResult::DisparityImageResult(
   disparity->header = image->header;
   disparity->image.header = image->header;
 
+      if(disparity16.empty()) return;
+
   const int DPP = 16;                // disparities per pixel
   const double inv_dpp = 1.0 / DPP;  // downsample / DPP
 

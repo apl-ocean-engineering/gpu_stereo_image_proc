@@ -219,12 +219,22 @@ void VPIStereoMatcher::compute(cv::InputArray left_input,
 
 cv::Mat VPIStereoMatcher::confidence() {
   cv::Mat confidence_out;
-  // confidence_gpu_mat_.download(confidence_out);
+
+  VPIImageData img_data;
+  VPI_CHECK_STATUS( vpiImageLockData(confidence_, VPI_LOCK_READ, VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR, &img_data ));
+  VPI_CHECK_STATUS( vpiImageDataExportOpenCVMat( img_data, &confidence_out ));
+  VPI_CHECK_STATUS( vpiImageUnlock(confidence_));
+
   return confidence_out;
 }
 
 cv::Mat VPIStereoMatcher::disparity() {
   cv::Mat disp_out;
+
+  VPIImageData img_data;
+  VPI_CHECK_STATUS( vpiImageLockData(disparity_, VPI_LOCK_READ, VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR, &img_data ));
+  VPI_CHECK_STATUS( vpiImageDataExportOpenCVMat( img_data, &disp_out ));
+  VPI_CHECK_STATUS( vpiImageUnlock(disparity_));
 
   // if (params_.filtering == VPIStereoMatcherParams::Filtering_Bilateral) {
   //   disparity_filtered_gpu_mat_.download(disp_out);
@@ -237,12 +247,24 @@ cv::Mat VPIStereoMatcher::disparity() {
 
 cv::Mat VPIStereoMatcher::scaledLeftRect() {
   cv::Mat left_out;
+
+  VPIImageData img_data;
+  VPI_CHECK_STATUS( vpiImageLockData(left_scaled_, VPI_LOCK_READ, VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR, &img_data ));
+  VPI_CHECK_STATUS( vpiImageDataExportOpenCVMat( img_data, &left_out ));
+  VPI_CHECK_STATUS( vpiImageUnlock(left_scaled_));
+
   // left_scaled_gpu_mat_.download(left_out);
   return left_out;
 }
 
 cv::Mat VPIStereoMatcher::scaledRightRect() {
   cv::Mat right_out;
+
+  VPIImageData img_data;
+  VPI_CHECK_STATUS( vpiImageLockData(right_scaled_, VPI_LOCK_READ, VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR, &img_data ));
+  VPI_CHECK_STATUS( vpiImageDataExportOpenCVMat( img_data, &right_out ));
+  VPI_CHECK_STATUS( vpiImageUnlock(right_scaled_));
+
   // right_scaled_gpu_mat_.download(right_out);
   return right_out;
 }
